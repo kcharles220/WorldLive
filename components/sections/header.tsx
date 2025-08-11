@@ -1,6 +1,5 @@
 "use client";
 
-import { ModeToggle } from "@/components/theme-toggle";
 import { useState, useEffect } from "react";
 import { AnimatedThemeToggler } from "../magicui/animated-theme-toggler";
 

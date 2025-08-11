@@ -26,7 +26,7 @@ export function Hero({ onScrollToSection }: HeroProps) {
             </h1>
             <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
               Watch live flights, ships, weather patterns, and earthquakes on an interactive 3D globe.
-              Click on any object to discover detailed information about what's happening around the world.
+              Click on any object to discover detailed information about what&apos;s happening around the world.
             </p>
           </div>
 

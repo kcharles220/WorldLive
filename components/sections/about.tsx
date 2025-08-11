@@ -68,7 +68,7 @@ export function About() {
                     <Mail className="w-8 h-8 text-blue-600" />
                   </div>
                   <div>
-                    <h4 className="text-2xl font-bold text-foreground mb-2">Let's Connect</h4>
+                    <h4 className="text-2xl font-bold text-foreground mb-2">Let&apos;s Connect</h4>
                     <p className="text-muted-foreground">Ready to collaborate on something amazing?</p>
                   </div>
                 </div>

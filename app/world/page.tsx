@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, IonResource, Color, GridImageryProvider, Cartesian3, Math as CesiumMath } from "cesium";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
 import {
@@ -14,18 +14,15 @@ import {
   Sun,
   Moon,
   Eye,
-  EyeOff,
   Building,
-  MapPin,
   Map,
   Navigation,
   Grid3x3,
-  Cloud,
+  
   Plane,
   Anchor,
   Users,
   Shield,
-  RotateCcw,
   MapPinHouse,
   Sparkles
 } from "lucide-react";
@@ -34,8 +31,6 @@ export default function WorldPage() {
   const cesiumContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const tilesetRef = useRef<Cesium3DTileset | null>(null);
-  const countryBordersRef = useRef<KmlDataSource | null>(null);
-  const cityLabelsRef = useRef<KmlDataSource | null>(null);
   const airportsRef = useRef<KmlDataSource | null>(null);
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
@@ -69,7 +64,11 @@ export default function WorldPage() {
   });
 
   // Helper functions for KML management
-  const loadKmlData = async (viewer: any, dataSourceRef: any, filePath: string) => {
+  const loadKmlData = async (
+    viewer: Viewer,
+    dataSourceRef: React.MutableRefObject<KmlDataSource | null>,
+    filePath: string
+  ) => {
     try {
       if (!dataSourceRef.current) {
         const { KmlDataSource } = await import("cesium");
@@ -82,7 +81,10 @@ export default function WorldPage() {
     }
   };
 
-  const removeKmlData = (viewer: any, dataSourceRef: any) => {
+  const removeKmlData = (
+    viewer: Viewer,
+    dataSourceRef: React.MutableRefObject<KmlDataSource | null>
+  ) => {
     if (dataSourceRef.current) {
       viewer.dataSources.remove(dataSourceRef.current);
       dataSourceRef.current = null;
@@ -111,7 +113,7 @@ export default function WorldPage() {
 
   useEffect(() => {
     Ion.defaultAccessToken = accessToken;
-    (window as any).CESIUM_BASE_URL = "/cesium";
+  (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = "/cesium";
 
     let viewer: Viewer | undefined;
     if (cesiumContainerRef.current) {
@@ -146,7 +148,7 @@ export default function WorldPage() {
       viewer.scene.globe.showGroundAtmosphere = settings.showGroundAtmosphere;
 
       // Store original skybox reference for later use
-      (viewer as any).originalSkyBox = originalSkyBox;
+  (viewer as unknown as { originalSkyBox: typeof originalSkyBox }).originalSkyBox = originalSkyBox;
 
       // City names and labels
       viewer.scene.globe.enableLighting = settings.enableLighting;
@@ -180,14 +182,24 @@ export default function WorldPage() {
       // Handle sky box toggle - simple approach
       if (settings.showSkyBox) {
         // Restore original skybox if available
-        if ((viewer as any).originalSkyBox && !viewer.scene.skyBox) {
-          viewer.scene.skyBox = (viewer as any).originalSkyBox;
+        if ((viewer as unknown as { originalSkyBox?: typeof viewer.scene.skyBox }).originalSkyBox && !viewer.scene.skyBox) {
+          viewer.scene.skyBox = (viewer as unknown as { originalSkyBox?: typeof viewer.scene.skyBox }).originalSkyBox;
         }
       } else {
         viewer.scene.skyBox = undefined;
       }
     }
-  }, [settings]);
+  }, [
+    settings.showSun,
+    settings.showMoon,
+    settings.showSkyAtmosphere,
+    settings.enableLighting,
+    settings.showWaterEffect,
+    settings.enableDepthTesting,
+    settings.showGroundAtmosphere,
+    settings.showSkyBox,
+    settings.showCityNames
+  ]);
 
   // Handle Photorealistic 3D Tiles toggle separately
   useEffect(() => {

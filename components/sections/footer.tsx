@@ -1,4 +1,4 @@
-import { Globe, Zap, Database, Shield } from "lucide-react";
+import { Globe } from "lucide-react";
 
 interface FooterProps {
   onScrollToSection: (sectionId: string) => void;
