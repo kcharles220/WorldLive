@@ -33,12 +33,6 @@ export function Hero({ onScrollToSection }: HeroProps) {
           {/* CTA Button */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Button
-              size="lg"
-              className="text-lg px-8 py-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
-            >
-              Explore the World
-            </Button>
-            <Button
               variant="outline"
               size="lg"
               className="text-lg px-8 py-6 border-2 hover:bg-accent/50 transition-all duration-300"
@@ -46,6 +40,14 @@ export function Hero({ onScrollToSection }: HeroProps) {
             >
               Learn More
             </Button>
+            <Button
+              size="lg"
+              className="text-lg px-8 py-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
+              onClick={() => window.location.href = '/world'}
+            >
+              Explore the World
+            </Button>
+            
           </div>
         </div>
       </div>

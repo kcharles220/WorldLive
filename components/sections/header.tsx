@@ -41,13 +41,16 @@ export function Header({ onScrollToSection }: HeaderProps) {
 
                     {/* Clean logo */}
                     <div className="flex items-center space-x-3 group">
-                        <div className={`
+                        <div
+                            className={` cursor-pointer
               transition-all duration-300 group-hover:scale-105
               ${isScrolled ? 'w-9 h-9 rounded-xl' : 'w-10 h-10 rounded-2xl'}
               bg-gradient-to-br from-blue-500 to-purple-600 
               shadow-md group-hover:shadow-lg
               flex items-center justify-center
-            `}>
+            `}
+                            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                        >
                             <span className={`
                 font-semibold text-white transition-all duration-300
                 ${isScrolled ? 'text-base' : 'text-lg'}
@@ -63,7 +66,7 @@ export function Header({ onScrollToSection }: HeaderProps) {
                     </div>
 
                     {/* Clean navigation - centered */}
-                    <nav className="hidden md:flex items-center space-x-2 absolute left-1/2 transform -translate-x-1/2">
+                    <nav className="hidden md:flex items-center space-x-2 absolute left-1/2 transform -translate-x-1/2 gap-2.5">
                         {[
                             { label: 'World', action: () => window.location.href = '/world' },
                             { label: 'Features', action: () => onScrollToSection('features') },
@@ -72,7 +75,7 @@ export function Header({ onScrollToSection }: HeaderProps) {
                             <button
                                 key={item.label}
                                 onClick={item.action}
-                                className="
+                                className="cursor-pointer
                   px-4 py-2 rounded-xl font-medium transition-all duration-200
                   text-muted-foreground hover:text-foreground
                   hover:bg-accent/80
@@ -83,7 +86,7 @@ export function Header({ onScrollToSection }: HeaderProps) {
                         ))}
                     </nav>
 
-                    <AnimatedThemeToggler />
+                    <AnimatedThemeToggler className="cursor-pointer"/>
                 </div>
             </div>
         </header>

@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Major World Airports</name>
+    <Style id="airportStyle">
+      <IconStyle>
+        <scale>0.7</scale>
+        <Icon>
+          <href>http://maps.google.com/mapfiles/kml/shapes/airports.png</href>
+        </Icon>
+      </IconStyle>
+      <LabelStyle>
+        <color>ffffffff</color>
+        <scale>0.8</scale>
+      </LabelStyle>
+    </Style>
+    
+    <!-- North America -->
+    <Placemark>
+      <name>JFK - John F. Kennedy International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-73.778925,40.639751,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>LAX - Los Angeles International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-118.408075,33.942536,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>ORD - O'Hare International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-87.904842,41.978603,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>YYZ - Toronto Pearson International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-79.624519,43.677223,0</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Europe -->
+    <Placemark>
+      <name>LHR - London Heathrow Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-0.461941,51.4700223,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>CDG - Charles de Gaulle Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>2.55,49.012779,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>FRA - Frankfurt Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>8.562152,50.033333,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>AMS - Amsterdam Airport Schiphol</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>4.763385,52.308601,0</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Asia -->
+    <Placemark>
+      <name>NRT - Narita International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>140.386002,35.764722,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>HKG - Hong Kong International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>113.914603,22.308919,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>SIN - Singapore Changi Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>103.994003,1.35019,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>ICN - Incheon International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>126.450516,37.469075,0</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Middle East & Africa -->
+    <Placemark>
+      <name>DXB - Dubai International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>55.364441,25.252778,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>CAI - Cairo International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>31.405556,30.121944,0</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- South America -->
+    <Placemark>
+      <name>GRU - São Paulo/Guarulhos International Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>-46.473081,-23.435556,0</coordinates>
+      </Point>
+    </Placemark>
+    
+    <!-- Oceania -->
+    <Placemark>
+      <name>SYD - Sydney Kingsford Smith Airport</name>
+      <styleUrl>#airportStyle</styleUrl>
+      <Point>
+        <coordinates>151.177002,-33.946667,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>

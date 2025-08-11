@@ -117,9 +117,7 @@
     border-color: var(--color-border);
     outline-color: color-mix(in srgb, var(--color-ring) 50%, transparent);
   }
-  html, body {
-    scrollbar-gutter: stable;
-  }
+  
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);

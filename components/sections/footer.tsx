@@ -37,15 +37,15 @@ export function Footer({ onScrollToSection }: FooterProps) {
               <h4 className="text-sm font-semibold text-foreground">Navigate</h4>
               <div className="space-y-2">
                 {[
+                  { label: 'Top', action: () => window.scrollTo({ top: 0, behavior: 'smooth' }) },
                   { label: 'Features', action: () => onScrollToSection('features') },
                   { label: 'About', action: () => onScrollToSection('about') },
-                  { label: 'Privacy Policy', action: () => {} },
-                  { label: 'Terms of Service', action: () => {} }
+                 
                 ].map((link) => (
                   <button
                     key={link.label}
                     onClick={link.action}
-                    className="block text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 text-left"
+                    className="cursor-pointer block text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 text-left"
                   >
                     {link.label}
                   </button>

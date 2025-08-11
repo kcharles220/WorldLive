@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Major States and Provinces</name>
+    <Style id="stateStyle">
+      <LineStyle>
+        <color>ff0080ff</color>
+        <width>2</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>330080ff</color>
+        <fill>1</fill>
+        <outline>1</outline>
+      </PolyStyle>
+    </Style>
+    
+    <!-- California (simplified boundary) -->
+    <Placemark>
+      <name>California, USA</name>
+      <styleUrl>#stateStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -124.4096,41.9983,0
+              -124.2118,39.8754,0
+              -120.0060,39.0000,0
+              -119.9961,35.0014,0
+              -117.1265,32.5343,0
+              -114.6315,32.7186,0
+              -114.1361,32.2844,0
+              -111.0737,31.3315,0
+              -109.0452,31.3315,0
+              -109.0452,37.0004,0
+              -114.0520,37.0004,0
+              -114.6396,41.9951,0
+              -120.0060,42.0090,0
+              -124.4096,41.9983,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+    <!-- Texas (simplified boundary) -->
+    <Placemark>
+      <name>Texas, USA</name>
+      <styleUrl>#stateStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -106.6456,31.7539,0
+              -104.0591,29.7741,0
+              -102.0428,29.7741,0
+              -94.0431,29.7741,0
+              -93.5080,30.1695,0
+              -93.5080,33.0196,0
+              -94.0431,33.0196,0
+              -94.0431,36.5007,0
+              -103.0018,36.5007,0
+              -106.6456,32.0000,0
+              -106.6456,31.7539,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+    <!-- Ontario, Canada (simplified) -->
+    <Placemark>
+      <name>Ontario, Canada</name>
+      <styleUrl>#stateStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              -95.1557,48.9999,0
+              -89.4894,48.0107,0
+              -82.4103,46.1681,0
+              -79.1630,43.6319,0
+              -74.3678,45.0181,0
+              -74.3678,45.8027,0
+              -79.5170,49.0000,0
+              -95.1557,49.0000,0
+              -95.1557,48.9999,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+    <!-- Bavaria, Germany (simplified) -->
+    <Placemark>
+      <name>Bavaria, Germany</name>
+      <styleUrl>#stateStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              8.9767,50.5644,0
+              13.8339,50.1109,0
+              13.8339,47.2701,0
+              10.1752,47.2701,0
+              8.9767,48.7758,0
+              8.9767,50.5644,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+    
+    <!-- New South Wales, Australia (simplified) -->
+    <Placemark>
+      <name>New South Wales, Australia</name>
+      <styleUrl>#stateStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              141.0021,-28.9996,0
+              153.6389,-28.1571,0
+              153.6389,-37.5053,0
+              140.9994,-37.5053,0
+              141.0021,-28.9996,0
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+  </Document>
+</kml>
