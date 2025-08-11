@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath } from "cesium";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, PointGraphics, Color } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
 import {
@@ -18,7 +18,7 @@ import {
   Map,
   Navigation,
   Grid3x3,
-  
+
   Plane,
   Anchor,
   Users,
@@ -34,7 +34,6 @@ export default function WorldPage() {
   const airportsRef = useRef<KmlDataSource | null>(null);
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
-  const populatedPlacesRef = useRef<KmlDataSource | null>(null);
   const bordersRef = useRef<KmlDataSource | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -53,13 +52,12 @@ export default function WorldPage() {
     showCountryBorders: false,
     showCityNames: false,
     showCoordinateGrid: false,
-    enableDepthTesting: true,
+    enableDepthTesting: false,
     showGroundAtmosphere: true,
     showSkyBox: false,
     showAirports: false,
     showStatesProvinces: false,
     showPorts: false,
-    showPopulatedPlaces: false,
     showBorders: false
   });
 
@@ -71,10 +69,18 @@ export default function WorldPage() {
   ) => {
     try {
       if (!dataSourceRef.current) {
-        const { KmlDataSource } = await import("cesium");
-        const dataSource = await KmlDataSource.load(filePath);
-        dataSourceRef.current = dataSource;
-        viewer.dataSources.add(dataSource);
+        const { KmlDataSource, HeightReference, ConstantProperty } = await import("cesium");
+        dataSourceRef.current = await KmlDataSource.load(filePath, { clampToGround: false });
+        viewer.dataSources.add(dataSourceRef.current);
+
+        dataSourceRef.current.entities.values.forEach(function (entity) {
+          
+          
+          if (entity.point) {
+            entity.point.heightReference = new ConstantProperty(HeightReference.RELATIVE_TO_GROUND);
+            entity.point.pixelSize = new ConstantProperty(100);
+          }
+        });
       }
     } catch (error) {
       console.error(`Error loading KML data from ${filePath}:`, error);
@@ -113,7 +119,7 @@ export default function WorldPage() {
 
   useEffect(() => {
     Ion.defaultAccessToken = accessToken;
-  (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = "/cesium";
+    (window as unknown as { CESIUM_BASE_URL: string }).CESIUM_BASE_URL = "/cesium";
 
     let viewer: Viewer | undefined;
     if (cesiumContainerRef.current) {
@@ -148,7 +154,7 @@ export default function WorldPage() {
       viewer.scene.globe.showGroundAtmosphere = settings.showGroundAtmosphere;
 
       // Store original skybox reference for later use
-  (viewer as unknown as { originalSkyBox: typeof originalSkyBox }).originalSkyBox = originalSkyBox;
+      (viewer as unknown as { originalSkyBox: typeof originalSkyBox }).originalSkyBox = originalSkyBox;
 
       // City names and labels
       viewer.scene.globe.enableLighting = settings.enableLighting;
@@ -282,18 +288,6 @@ export default function WorldPage() {
     }
   }, [settings.showPorts]);
 
-  // Handle Populated Places toggle
-  useEffect(() => {
-    if (viewerRef.current) {
-      const viewer = viewerRef.current;
-
-      if (settings.showPopulatedPlaces) {
-        loadKmlData(viewer, populatedPlacesRef, '/populated_places.kml');
-      } else {
-        removeKmlData(viewer, populatedPlacesRef);
-      }
-    }
-  }, [settings.showPopulatedPlaces]);
 
   // Handle Borders toggle
   useEffect(() => {
@@ -376,24 +370,24 @@ export default function WorldPage() {
           {/* Help Button */}
           <button
             onClick={() => setShowInstructions(true)}
-            className="cursor-pointer w-10 h-10 bg-background/80 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-background/90 transition-all duration-200 shadow-sm"
+            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
             title="Controls & Instructions"
           >
             <HelpCircle className="w-5 h-5 text-foreground" />
           </button>
           {/* Reset View Button */}
-            <button
+          <button
             onClick={() => resetView()}
-            className="cursor-pointer w-10 h-10 bg-background/80 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-background/90 transition-all duration-200 shadow-sm"
+            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
             title="Reset View"
-            >
+          >
             <MapPinHouse className="w-5 h-5 text-foreground" />
-            </button>
+          </button>
 
           {/* Layers Button */}
           <button
             onClick={() => setShowLayers(true)}
-            className="cursor-pointer w-10 h-10 bg-background/80 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-background/90 transition-all duration-200 shadow-sm"
+            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
             title="Layers"
           >
             <Layers className="w-5 h-5 text-foreground" />
@@ -402,7 +396,7 @@ export default function WorldPage() {
           {/* Settings Button */}
           <button
             onClick={() => setShowSettings(true)}
-            className="cursor-pointer w-10 h-10 bg-background/80 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-background/90 transition-all duration-200 shadow-sm"
+            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
             title="Settings"
           >
             <Settings className="w-5 h-5 text-foreground" />
@@ -411,7 +405,7 @@ export default function WorldPage() {
           {/* Fullscreen Button */}
           <button
             onClick={toggleFullscreen}
-            className="cursor-pointer w-10 h-10 bg-background/80 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-background/90 transition-all duration-200 shadow-sm"
+            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
             title="Toggle Fullscreen"
           >
             {isFullscreen ? (
@@ -425,7 +419,7 @@ export default function WorldPage() {
 
       {/* Instructions Modal */}
       {showInstructions && (
-        <div 
+        <div
           className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           onClick={(e) => handleModalBackdropClick(e, () => setShowInstructions(false))}
         >
@@ -461,7 +455,7 @@ export default function WorldPage() {
                         <div className="text-gray-400 text-sm">Rotate the globe</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
                       <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
                         <div className="w-3 h-3 bg-white rounded-sm"></div>
@@ -471,7 +465,7 @@ export default function WorldPage() {
                         <div className="text-gray-400 text-sm">Zoom in and out</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
                       <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
                         <div className="w-3 h-3 border-2 border-white rounded-full"></div>
@@ -481,7 +475,7 @@ export default function WorldPage() {
                         <div className="text-gray-400 text-sm">Zoom in and out</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
                       <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
                         <div className="text-xs text-white font-bold">⇧</div>
@@ -491,7 +485,7 @@ export default function WorldPage() {
                         <div className="text-gray-400 text-sm">Rotate camera angle</div>
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
                       <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
                         <div className="text-xs text-white font-bold">⌃</div>
@@ -522,7 +516,7 @@ export default function WorldPage() {
                     <span>Quick Actions</span>
                   </h4>
                   <div className="space-y-2">
-                    
+
                     <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
                       <span className="text-white font-medium">Reset View Button</span>
                       <span className="text-gray-400 text-sm">Return to default view</span>
@@ -550,7 +544,7 @@ export default function WorldPage() {
 
       {/* Layers Modal */}
       {showLayers && (
-        <div 
+        <div
           className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           onClick={(e) => handleModalBackdropClick(e, () => setShowLayers(false))}
         >
@@ -583,16 +577,25 @@ export default function WorldPage() {
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
                   <div>
-                    <div className="font-medium text-gray-300">Weather Layer</div>
+                    <div className="font-medium text-gray-300">Air Traffic</div>
                     <div className="text-gray-500 text-sm">Coming soon...</div>
                   </div>
                 </div>
               </div>
+                <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60">
+                <div className="flex items-center space-x-3">
+                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <div>
+                  <div className="font-medium text-gray-300">Naval Traffic</div>
+                  <div className="text-gray-500 text-sm">Coming soon...</div>
+                  </div>
+                </div>
+                </div>
               <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60">
                 <div className="flex items-center space-x-3">
                   <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
                   <div>
-                    <div className="font-medium text-gray-300">Air Traffic</div>
+                    <div className="font-medium text-gray-300">Weather Layer</div>
                     <div className="text-gray-500 text-sm">Coming soon...</div>
                   </div>
                 </div>
@@ -604,7 +607,7 @@ export default function WorldPage() {
 
       {/* Settings Modal */}
       {showSettings && (
-        <div 
+        <div
           className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           onClick={(e) => handleModalBackdropClick(e, () => setShowSettings(false))}
         >
@@ -814,24 +817,6 @@ export default function WorldPage() {
                     </button>
                   </div>
 
-                  {/* States/Provinces Setting */}
-                  <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
-                    <div className="flex items-center space-x-3">
-                      <Shield className="w-5 h-5 text-purple-500" />
-                      <span className="text-white font-medium">States/Provinces</span>
-                    </div>
-                    <button
-                      onClick={() => updateSetting('showStatesProvinces', !settings.showStatesProvinces)}
-                      className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showStatesProvinces ? 'bg-purple-500' : 'bg-gray-700'
-                        }`}
-                    >
-                      <div
-                        className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showStatesProvinces ? 'translate-x-6' : 'translate-x-0.5'
-                          }`}
-                      />
-                    </button>
-                  </div>
-
                   {/* Ports Setting */}
                   <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
                     <div className="flex items-center space-x-3">
@@ -850,24 +835,6 @@ export default function WorldPage() {
                     </button>
                   </div>
 
-                  {/* Populated Places Setting */}
-                  <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
-                    <div className="flex items-center space-x-3">
-                      <Users className="w-5 h-5 text-green-500" />
-                      <span className="text-white font-medium">Populated Places</span>
-                    </div>
-                    <button
-                      onClick={() => updateSetting('showPopulatedPlaces', !settings.showPopulatedPlaces)}
-                      className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showPopulatedPlaces ? 'bg-green-500' : 'bg-gray-700'
-                        }`}
-                    >
-                      <div
-                        className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showPopulatedPlaces ? 'translate-x-6' : 'translate-x-0.5'
-                          }`}
-                      />
-                    </button>
-                  </div>
-
                   {/* International Borders Setting */}
                   <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
                     <div className="flex items-center space-x-3">
@@ -881,6 +848,24 @@ export default function WorldPage() {
                     >
                       <div
                         className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showBorders ? 'translate-x-6' : 'translate-x-0.5'
+                          }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* States/Provinces Setting */}
+                  <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
+                    <div className="flex items-center space-x-3">
+                      <Shield className="w-5 h-5 text-purple-500" />
+                      <span className="text-white font-medium">States/Provinces</span>
+                    </div>
+                    <button
+                      onClick={() => updateSetting('showStatesProvinces', !settings.showStatesProvinces)}
+                      className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showStatesProvinces ? 'bg-purple-500' : 'bg-gray-700'
+                        }`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showStatesProvinces ? 'translate-x-6' : 'translate-x-0.5'
                           }`}
                       />
                     </button>
@@ -910,7 +895,7 @@ export default function WorldPage() {
                       />
                     </button>
                   </div>
-                  
+
                   {/* Coordinate Grid Setting */}
                   <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
                     <div className="flex items-center space-x-3">
@@ -931,10 +916,10 @@ export default function WorldPage() {
                 </div>
 
 
-                </div>
               </div>
             </div>
           </div>
+        </div>
       )}
 
       <style global jsx>{`
