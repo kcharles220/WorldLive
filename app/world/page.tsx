@@ -429,116 +429,117 @@ export default function WorldPage() {
           className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
           onClick={(e) => handleModalBackdropClick(e, () => setShowInstructions(false))}
         >
-          <div className="bg-black border border-gray-800 rounded-2xl p-8 max-w-lg w-full shadow-2xl">
+          <div className="bg-black border border-gray-800 rounded-2xl p-6 max-w-md w-full max-h-[85vh] shadow-2xl">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-center">
-                  <Navigation className="w-5 h-5 text-white" />
+                <div className="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center">
+                  <Navigation className="w-4 h-4 text-white" />
                 </div>
-                <h3 className="text-xl font-bold text-white">Navigation Controls</h3>
+                <h3 className="text-lg font-bold text-white">Navigation Controls</h3>
               </div>
               <button
                 onClick={() => setShowInstructions(false)}
                 className="w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
               >
-                <X className=" cursor-pointer w-4 h-4 text-gray-300" />
+                <X className="cursor-pointer w-4 h-4 text-gray-300" />
               </button>
             </div>
-            
-            <div className="space-y-4">
-              {/* Mouse Controls */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
-                  <span>Mouse Controls</span>
-                </h4>
+            <div className="overflow-y-auto max-h-[calc(85vh-8rem)] pr-2 custom-scrollbar">
+              <div className="space-y-4">
+                {/* Mouse Controls */}
                 <div className="space-y-3">
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="w-3 h-3 bg-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Left Click + Drag</div>
-                      <div className="text-gray-400 text-sm">Rotate the globe</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="w-3 h-3 bg-white rounded-sm"></div>
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Right Click + Drag Up/Down</div>
-                      <div className="text-gray-400 text-sm">Zoom in and out</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="w-3 h-3 border-2 border-white rounded-full"></div>
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Scroll Up/Down</div>
-                      <div className="text-gray-400 text-sm">Zoom in and out</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="text-xs text-white font-bold">⇧</div>
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Shift + Left Click + Drag</div>
-                      <div className="text-gray-400 text-sm">Rotate camera angle</div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="text-xs text-white font-bold">⌃</div>
-                    </div>
-                    <div>
-                      <div className="text-white font-medium">Ctrl + Left Click + Drag</div>
-                      <div className="text-gray-400 text-sm">Change camera position</div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="w-3 h-3 bg-white rounded-full relative">
-                        <div className="absolute inset-0 border border-gray-500 rounded-full"></div>
+                  <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
+                    <span>Mouse Controls</span>
+                  </h4>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="w-3 h-3 bg-white rounded-full"></div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Left Click + Drag</div>
+                        <div className="text-gray-400 text-sm">Rotate the globe</div>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-white font-medium">Middle Click + Drag</div>
-                      <div className="text-gray-400 text-sm">Change camera position</div>
+                    
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="w-3 h-3 bg-white rounded-sm"></div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Right Click + Drag Up/Down</div>
+                        <div className="text-gray-400 text-sm">Zoom in and out</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="w-3 h-3 border-2 border-white rounded-full"></div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Scroll Up/Down</div>
+                        <div className="text-gray-400 text-sm">Zoom in and out</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="text-xs text-white font-bold">⇧</div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Shift + Left Click + Drag</div>
+                        <div className="text-gray-400 text-sm">Rotate camera angle</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="text-xs text-white font-bold">⌃</div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Ctrl + Left Click + Drag</div>
+                        <div className="text-gray-400 text-sm">Change camera position</div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-4 p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <div className="w-8 h-8 bg-black border border-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="w-3 h-3 bg-white rounded-full relative">
+                          <div className="absolute inset-0 border border-gray-500 rounded-full"></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Middle Click + Drag</div>
+                        <div className="text-gray-400 text-sm">Change camera position</div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Quick Actions */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
-                  <span>Quick Actions</span>
-                </h4>
-                <div className="space-y-2">
-                  
-                  <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
-                    <span className="text-white font-medium">Reset View Button</span>
-                    <span className="text-gray-400 text-sm">Return to default view</span>
+                {/* Quick Actions */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
+                    <span>Quick Actions</span>
+                  </h4>
+                  <div className="space-y-2">
+                    
+                    <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800">
+                      <span className="text-white font-medium">Reset View Button</span>
+                      <span className="text-gray-400 text-sm">Return to default view</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Pro Tip */}
-              <div className="mt-6 p-4 bg-gray-900 rounded-xl border border-gray-800">
-                <div className="flex items-start space-x-3">
-                  <div className="w-6 h-6 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <span className="text-white text-xs font-bold">💡</span>
-                  </div>
-                  <div>
-                    <div className="text-white font-medium text-sm">Pro Tip</div>
-                    <div className="text-gray-300 text-sm mt-1">Use the settings panel to customize your viewing experience with different layers and visual effects!</div>
+                {/* Pro Tip */}
+                <div className="mt-6 p-4 bg-gray-900 rounded-xl border border-gray-800">
+                  <div className="flex items-start space-x-3">
+                    <div className="w-6 h-6 bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-white text-xs font-bold">💡</span>
+                    </div>
+                    <div>
+                      <div className="text-white font-medium text-sm">Pro Tip</div>
+                      <div className="text-gray-300 text-sm mt-1">Use the settings panel to customize your viewing experience with different layers and visual effects!</div>
+                    </div>
                   </div>
                 </div>
               </div>
