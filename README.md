@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# WorldLive 🌍
 
-## Getting Started
+**Discover the World Live & Interactive**  
+https://world-live.vercel.app/
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🇬🇧 English
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### What is WorldLive?
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+WorldLive is an interactive 3D globe platform that lets you explore live data from around the world. Track real-time flights, vessels, weather, earthquakes, and toggle various geographic layers like airports, ports, country and district/province/state borders. You can also customize the atmosphere, sun, moon, and lighting effects for a stunning visual experience powered by CesiumJS.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Features
 
-## Learn More
+- 🌐 **Customizable Interactive 3D Globe**  
+  Toggle layers such as airports, ports, country borders, district/province/state borders  
+- ✈️ **Live Flights** — Track aircraft worldwide in real time  
+- 🚢 **Live Vessels** — See ships and boats move live across seas  
+- 🌦️ **Real-time Weather** — Monitor current climate conditions globally  
+- 🌍 **Events** — View live natural events such as earthquakes  
+- 🌙 **Atmosphere & Lighting Control**  
+  Enable/disable atmosphere, moon, sun, and sun illumination effects  
+- 🖤 **Modern, Sleek UI** — Built for smooth control and responsive use  
 
-To learn more about Next.js, take a look at the following resources:
+### Tech Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Next.js  
+- Shadcn UI  
+- Tailwind CSS  
+- CesiumJS  
+- And a few other lightweight libs  
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Deployment
 
-## Deploy on Vercel
+The project is deployed live on Vercel:  
+https://world-live.vercel.app/
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## 🇵🇹 Português
+
+### O que é o WorldLive?
+
+O WorldLive é uma plataforma interativa com um globo 3D que permite explorar dados em tempo real de todo o mundo. Acompanha voos, navios, meteorologia, terramotos e ativa/desativa camadas como aeroportos, portos, fronteiras de países e de distritos/províncias/estados. Também podes controlar a atmosfera, lua, sol e iluminação para uma experiência visual impressionante, tudo suportado pelo CesiumJS.
+
+### Funcionalidades
+
+- 🌐 **Globo 3D Interativo e Customizável**  
+  Liga/desliga camadas como aeroportos, portos, fronteiras de países e distritos/províncias/estados  
+- ✈️ **Voos em Tempo Real** — Vê aviões em todo o mundo em direto  
+- 🚢 **Navios em Tempo Real** — Acompanha embarcações nos mares em tempo real  
+- 🌦️ **Clima em Tempo Real** — Consulta o estado do tempo global  
+- 🌍 **Eventos Naturais** — Visualiza terramotos e outros eventos em direto  
+- 🌙 **Controlo da Atmosfera e Iluminação**  
+  Ativa/desativa atmosfera, lua, sol e a iluminação do sol  
+- 🖤 **Interface Moderna e Fluída** — Design responsivo e controlos suaves  
+
+### Tech Stack
+
+- Next.js  
+- Shadcn UI  
+- Tailwind CSS  
+- CesiumJS  
+- E algumas outras libs leves  
+
+### Deploy
+
+O projeto está alojado na Vercel:  
+https://world-live.vercel.app/
+
+---
+
+**WorldLive — Experience the world, live. | Vive o mundo, em direto.**
