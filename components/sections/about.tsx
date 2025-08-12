@@ -1,4 +1,4 @@
-import { Github, Linkedin, Mail, MessageCircle } from "lucide-react";
+import { Github, Linkedin, Mail } from "lucide-react";
 
 export function About() {
   return (
@@ -42,7 +42,7 @@ export function About() {
               </h4>
               <div className="flex space-x-4">
                 {[
-                  { name: 'Next.js', icon: '⚡' },
+                  { name: 'Next.js', icon: '▲' },
                   { name: 'ShadCN', icon: '🎨' },
                   { name: 'CesiumJS', icon: '🌍' },
                   { name: 'APIs', icon: '🔗' }
@@ -74,31 +74,25 @@ export function About() {
                 </div>
 
                 {/* Contact Grid */}
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex justify-center gap-4">
                   {[
                     { 
                       icon: Mail, 
                       label: 'Email',
-                      href: 'mailto:hello@worldlive.com',
-                      iconColor: 'text-blue-600',
+                      href: 'mailto:carlos.ppinto220@gmail.com',
+                      iconColor: 'text-red-500',
                     },
                     { 
                       icon: Github, 
                       label: 'GitHub',
-                      href: '#',
+                      href: 'https://github.com/kcharles220',
                       iconColor: 'text-gray-600',
                     },
                     { 
                       icon: Linkedin, 
                       label: 'LinkedIn',
-                      href: '#',
+                      href: 'https://www.linkedin.com/in/carlospinto03/',
                       iconColor: 'text-blue-600',
-                    },
-                    { 
-                      icon: MessageCircle, 
-                      label: 'Discord',
-                      href: '#',
-                      iconColor: 'text-purple-600',
                     }
                   ].map((contact) => {
                     const IconComponent = contact.icon;
@@ -106,12 +100,14 @@ export function About() {
                       <a
                         key={contact.label}
                         href={contact.href}
-                        className={"group flex flex-col items-center space-y-3 p-6 rounded-2xl border border-border/30 transition-all duration-300 hover:scale-105 hover:shadow-lg"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="group flex flex-col items-center space-y-3 p-5 rounded-2xl border border-border/30 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-border/60 flex-1 min-w-0 max-w-[120px]"
                       >
                         <div className="w-12 h-12 bg-white/50 dark:bg-black/20 rounded-xl flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
                           <IconComponent className={`w-6 h-6 ${contact.iconColor}`} />
                         </div>
-                        <span className="text-sm font-medium text-foreground">{contact.label}</span>
+                        <span className="text-sm font-medium text-foreground text-center">{contact.label}</span>
                       </a>
                     );
                   })}

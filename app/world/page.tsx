@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, PointGraphics, Color } from "cesium";
+import { useRouter } from "next/navigation";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Cartesian2, Entity } from "cesium";
+import axios from "axios";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
 import {
@@ -18,20 +20,25 @@ import {
   Map,
   Navigation,
   Grid3x3,
-
+  Home,
   Plane,
   Anchor,
-  Users,
   Shield,
   MapPinHouse,
-  Sparkles
+  Sparkles,
+  CloudRain
 } from "lucide-react";
 
 export default function WorldPage() {
+  const router = useRouter();
   const cesiumContainerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const tilesetRef = useRef<Cesium3DTileset | null>(null);
   const airportsRef = useRef<KmlDataSource | null>(null);
+  // Flights entity management
+  const flightsRef = useRef<{ [id: string]: Entity }>({});
+  // Vessels entity management
+  const vesselsRef = useRef<{ [id: string]: Entity }>({});
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
   const bordersRef = useRef<KmlDataSource | null>(null);
@@ -58,8 +65,179 @@ export default function WorldPage() {
     showAirports: false,
     showStatesProvinces: false,
     showPorts: false,
-    showBorders: false
+    showBorders: false,
+    showFlights: false,
+    showVessels: false
   });
+
+  // Fetch and render real-time vessels
+  interface VesselReport {
+    timeSecUtc: number;
+    point: { latitude: number; longitude: number };
+    destination?: { latitude: number; longitude: number };
+    destinationName?: string;
+    etaSecUtc?: number;
+    boatName?: string;
+    callSign?: string;
+    mmsi: string;
+    lengthMeters?: number;
+    widthMeters?: number;
+    heightMeters?: number;
+    captain?: string;
+    speedKmh?: number;
+    bearingDeg?: number;
+    vesselType?: string;
+    source?: string;
+    boundingBox?: {
+      topLeft: { latitude: number; longitude: number };
+      bottomRight: { latitude: number; longitude: number };
+    };
+  }
+
+  const fetchVessels = async (viewer: Viewer) => {
+    try {
+      // Example endpoint, replace <version> and add any required parameters
+      const res = await axios.get('https://ais.marineplan.com/location/v1/locations.json');
+      const data = res.data;
+      console.log("Fetched vessels data:", data);
+      // Remove previous vessels
+      Object.values(vesselsRef.current).forEach(entity => {
+        viewer.entities.remove(entity);
+      });
+      vesselsRef.current = {};
+      // Add new vessels
+      if (data.reports && Array.isArray(data.reports)) {
+        (data.reports as VesselReport[]).forEach((vessel) => {
+          const lon = vessel.point?.longitude;
+          const lat = vessel.point?.latitude;
+          if (lon && lat) {
+            const entity = viewer.entities.add({
+              id: `vessel_${vessel.mmsi}`,
+              position: Cartesian3.fromDegrees(lon, lat, 0),
+              billboard: {
+                image: 'https://maps.google.com/mapfiles/kml/shapes/ferry.png',
+                scale: 0.7,
+                rotation: CesiumMath.toRadians(vessel.bearingDeg || 0),
+                alignedAxis: Cartesian3.UNIT_Z
+              },
+              label: {
+                text: vessel.boatName || vessel.mmsi || '',
+                font: '12px sans-serif',
+                pixelOffset: new Cartesian2(0, -30)
+              }
+            });
+            vesselsRef.current[vessel.mmsi] = entity;
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching vessels:", error);
+    }
+  };
+
+  // Effect to handle real-time vessels toggle
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (viewerRef.current && settings.showVessels) {
+      fetchVessels(viewerRef.current);
+      // Uncomment to poll every 60s (API usage caution)
+      /*
+      interval = setInterval(() => {
+        fetchVessels(viewerRef.current!);
+      }, 60000);
+      */
+    } else if (viewerRef.current && !settings.showVessels) {
+      Object.values(vesselsRef.current).forEach(entity => {
+        viewerRef.current!.entities.remove(entity);
+      });
+      vesselsRef.current = {};
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+      if (viewerRef.current) {
+        Object.values(vesselsRef.current).forEach(entity => {
+          viewerRef.current!.entities.remove(entity);
+        });
+        vesselsRef.current = {};
+      }
+    };
+  }, [settings.showVessels]);
+  // Fetch and render real-time flights
+  interface Flight {
+    longitude: number;
+    latitude: number;
+    altitude?: number;
+    heading?: number;
+    flight_iata: string;
+  }
+
+  const fetchFlights = async (viewer: Viewer) => {
+    try {
+      const res = await axios.get(`http://api.aviationstack.com/v1/flights?access_key=${process.env.AVIATIONSTACK_API_KEY}`);
+      const data = res.data;
+      // Remove previous flights
+      Object.values(flightsRef.current).forEach(entity => {
+        viewer.entities.remove(entity);
+      });
+      flightsRef.current = {};
+      // Add new flights
+      (data.data as Flight[]).forEach((flight) => {
+        const lon = flight.longitude;
+        const lat = flight.latitude;
+        if (lon && lat) {
+          const entity = viewer.entities.add({
+            id: `flight_${flight.flight_iata}`,
+            position: Cartesian3.fromDegrees(lon, lat, flight.altitude || 10000),
+            billboard: {
+              image: 'https://maps.google.com/mapfiles/kml/shapes/airports.png',
+              scale: 0.7,
+              rotation: CesiumMath.toRadians(flight.heading || 0),
+              alignedAxis: Cartesian3.UNIT_Z
+            },
+            label: {
+              text: flight.flight_iata || "",
+              font: '12px sans-serif',
+              pixelOffset: new Cartesian2(0, -30)
+            }
+          });
+          flightsRef.current[flight.flight_iata] = entity;
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching flights:", error);
+    }
+  };
+  // Effect to handle real-time flights toggle
+  useEffect(() => {
+    let interval: NodeJS.Timeout | undefined;
+    if (viewerRef.current && settings.showFlights) {
+      // Initial fetch
+      fetchFlights(viewerRef.current);
+
+      // Update flights every 60 seconds
+      /* this is commented to preserve API usage limits
+      interval = setInterval(() => {
+        fetchFlights(viewerRef.current!);
+      }, 60000);*/
+
+    } else if (viewerRef.current && !settings.showFlights) {
+      // Remove all flight entities
+      Object.values(flightsRef.current).forEach(entity => {
+        viewerRef.current!.entities.remove(entity);
+      });
+      flightsRef.current = {};
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+      // Clean up on unmount or toggle off
+      if (viewerRef.current) {
+        Object.values(flightsRef.current).forEach(entity => {
+          viewerRef.current!.entities.remove(entity);
+        });
+        flightsRef.current = {};
+      }
+    };
+  }, [settings.showFlights]);
 
   // Helper functions for KML management
   const loadKmlData = async (
@@ -74,8 +252,8 @@ export default function WorldPage() {
         viewer.dataSources.add(dataSourceRef.current);
 
         dataSourceRef.current.entities.values.forEach(function (entity) {
-          
-          
+
+
           if (entity.point) {
             entity.point.heightReference = new ConstantProperty(HeightReference.RELATIVE_TO_GROUND);
             entity.point.pixelSize = new ConstantProperty(100);
@@ -366,7 +544,20 @@ export default function WorldPage() {
 
       {/* Control Buttons */}
       {!isLoading && (
-        <div className="absolute top-4 right-4 z-40 flex space-x-2">
+        <>
+          {/* Home Button - Top Left */}
+          <div className="absolute top-4 left-4 z-40">
+            <button
+              onClick={() => router.push('/')}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Go to Home"
+            >
+              <Home className="w-5 h-5 text-foreground" />
+            </button>
+          </div>
+
+          {/* Control Buttons - Top Right */}
+          <div className="absolute top-4 right-4 z-40 flex space-x-2">
           {/* Help Button */}
           <button
             onClick={() => setShowInstructions(true)}
@@ -414,7 +605,8 @@ export default function WorldPage() {
               <Maximize2 className="w-5 h-5 text-foreground" />
             )}
           </button>
-        </div>
+          </div>
+        </>
       )}
 
       {/* Instructions Modal */}
@@ -433,9 +625,9 @@ export default function WorldPage() {
               </div>
               <button
                 onClick={() => setShowInstructions(false)}
-                className="w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
+                className="cursor-pointer w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
               >
-                <X className="cursor-pointer w-4 h-4 text-gray-300" />
+                <X className="w-4 h-4 text-gray-300" />
               </button>
             </div>
             <div className="overflow-y-auto max-h-[calc(85vh-8rem)] pr-2 custom-scrollbar">
@@ -558,42 +750,76 @@ export default function WorldPage() {
               </div>
               <button
                 onClick={() => setShowLayers(false)}
-                className="w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
+                className="cursor-pointer w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
               >
-                <X className="cursor-pointer w-4 h-4 text-gray-300" />
+                <X className="w-4 h-4 text-gray-300" />
               </button>
             </div>
             <div className="space-y-3">
-              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl">
+              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <Globe className="w-5 h-5 text-green-500" />
                   <div>
                     <div className="font-medium text-white">Base Imagery</div>
                     <div className="text-gray-400 text-sm">Bing Maps Satellite</div>
                   </div>
                 </div>
               </div>
-              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60">
+                <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <Plane className="w-5 h-5 text-yellow-400" />
                   <div>
-                    <div className="font-medium text-gray-300">Air Traffic</div>
+                  <div className="font-medium text-white">Real-Time Flights</div>
+                  <div className="text-gray-400 text-sm">
+                    Visualize live air traffic
+                    <span className="block text-xs text-yellow-300 mt-1">
+                    (Temporarily disabled to preserve API limits)
+                    </span>
+                  </div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => updateSetting('showFlights', !settings.showFlights)}
+                  disabled={true}
+                  className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showFlights ? 'bg-yellow-400' : 'bg-gray-700'}`}
+                >
+                  <div
+                  className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showFlights ? 'translate-x-6' : 'translate-x-0.5'}`}
+                  />
+                </button>
+                </div>
+              {/*
+              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Anchor className="w-5 h-5 text-cyan-400" />
+                  <div>
+                    <div className="font-medium text-white">Naval Traffic</div>
+                    <div className="text-gray-400 text-sm">Track live vessels</div>
+                  </div>
+                </div>
+                <button
+                  onClick={() => updateSetting('showVessels', !settings.showVessels)}
+                  className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showVessels ? 'bg-cyan-400' : 'bg-gray-700'}`}
+                >
+                  <div
+                    className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showVessels ? 'translate-x-6' : 'translate-x-0.5'}`}
+                  />
+                </button>
+              </div>
+              */}
+              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Anchor className="w-5 h-5 text-cyan-500" />
+
+                  <div>
+                    <div className="font-medium text-gray-300">Naval Traffic</div>
                     <div className="text-gray-500 text-sm">Coming soon...</div>
                   </div>
                 </div>
               </div>
-                <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60">
+              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
-                  <div>
-                  <div className="font-medium text-gray-300">Naval Traffic</div>
-                  <div className="text-gray-500 text-sm">Coming soon...</div>
-                  </div>
-                </div>
-                </div>
-              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60">
-                <div className="flex items-center space-x-3">
-                  <div className="w-3 h-3 bg-gray-500 rounded-full"></div>
+                  <CloudRain className="w-5 h-5 text-cyan-100" />
                   <div>
                     <div className="font-medium text-gray-300">Weather Layer</div>
                     <div className="text-gray-500 text-sm">Coming soon...</div>
@@ -621,9 +847,9 @@ export default function WorldPage() {
               </div>
               <button
                 onClick={() => setShowSettings(false)}
-                className="w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
+                className="cursor-pointer w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
               >
-                <X className="cursor-pointer w-4 h-4 text-gray-300" />
+                <X className="w-4 h-4 text-gray-300" />
               </button>
             </div>
             <div className="overflow-y-auto max-h-[calc(85vh-8rem)] pr-2 custom-scrollbar">
@@ -793,7 +1019,6 @@ export default function WorldPage() {
                   </div>
                 </div>
 
-                {/* Infrastructure & Places Section */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
                     <span>Infrastructure & Places</span>
