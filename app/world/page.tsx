@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Entity, Transforms, HeadingPitchRoll } from "cesium";
-import { Color  } from "cesium";
+import { Color } from "cesium";
 import axios from "axios";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
@@ -44,6 +44,8 @@ export default function WorldPage() {
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
   const bordersRef = useRef<KmlDataSource | null>(null);
+  const maxFlightDistanceRef = useRef<number>(500000);
+  const use3DFlightModelsRef = useRef<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -183,8 +185,6 @@ export default function WorldPage() {
     flight_iata: string;
   }
 
-  // Distance-based flight management
-  const MAX_FLIGHT_DISTANCE = 2000000; // 2000km in meters
 
   const fetchFlights = async (viewer: Viewer) => {
     try {
@@ -233,17 +233,23 @@ export default function WorldPage() {
   };
 
   const updateVisibleFlights = (viewer: Viewer) => {
+    updateVisibleFlightsWithDistance(viewer, maxFlightDistanceRef.current, use3DFlightModelsRef.current);
+  };
+
+  const updateVisibleFlightsWithDistance = (viewer: Viewer, maxDistance: number, use3DModels: boolean) => {
     if (!viewer || allFlightsDataRef.current.length === 0) return;
 
     const cameraPosition = viewer.camera.position;
     const newVisibleFlights = new Set<string>();
-
+    console.log("Is 3D?:", use3DModels);
+    console.log("MaxDistance:", maxDistance);
     // Check each flight's distance from camera
     allFlightsDataRef.current.forEach((flight) => {
       const distance = calculateDistance(cameraPosition, flight.longitude, flight.latitude, flight.altitude || 10000);
       const entityId = `flight_${flight.flight_iata}`;
 
-      if (distance <= MAX_FLIGHT_DISTANCE) {
+
+      if (distance <= maxDistance) {
         newVisibleFlights.add(flight.flight_iata);
 
         // Add flight if not already visible
@@ -258,8 +264,7 @@ export default function WorldPage() {
             id: entityId,
             position: position
           };
-
-          if (settings.use3DFlightModels) {
+          if (use3DModels) {
             // Use 3D model
             entityConfig.model = {
               uri: '/models/plane.glb',
@@ -391,20 +396,23 @@ export default function WorldPage() {
         viewer.camera.changed.removeEventListener(onCameraMoveEnd);
       }
     };
-  }, [settings.showFlights]); // Re-attach listener if showFlights changes to get the latest state
+  }, [settings.showFlights]);
 
-  // Effect to handle 3D flight models setting change
+
   useEffect(() => {
+    const newDistance = settings.use3DFlightModels ? 500000 : 4000000;
+    maxFlightDistanceRef.current = newDistance;
+    use3DFlightModelsRef.current = settings.use3DFlightModels;
+
     if (viewerRef.current && settings.showFlights) {
-      // Remove all current flight entities
       Object.values(flightsRef.current).forEach(entity => {
         viewerRef.current!.entities.remove(entity);
       });
       flightsRef.current = {};
       visibleFlightsRef.current.clear();
 
-      // Re-render flights with new setting
-      updateVisibleFlights(viewerRef.current);
+      // Re-render flights with new setting and correct distance
+      updateVisibleFlightsWithDistance(viewerRef.current, newDistance, settings.use3DFlightModels);
     }
   }, [settings.use3DFlightModels]);
 
