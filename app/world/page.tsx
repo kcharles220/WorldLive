@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Cartesian2, Entity } from "cesium";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Entity, Transforms, HeadingPitchRoll } from "cesium";
+import { Color  } from "cesium";
 import axios from "axios";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
@@ -26,7 +27,8 @@ import {
   Shield,
   MapPinHouse,
   Sparkles,
-  CloudRain
+  CloudRain,
+  Box
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -35,9 +37,9 @@ export default function WorldPage() {
   const viewerRef = useRef<Viewer | null>(null);
   const tilesetRef = useRef<Cesium3DTileset | null>(null);
   const airportsRef = useRef<KmlDataSource | null>(null);
-  // Flights entity management
   const flightsRef = useRef<{ [id: string]: Entity }>({});
-  // Vessels entity management
+  const allFlightsDataRef = useRef<Flight[]>([]);
+  const visibleFlightsRef = useRef<Set<string>>(new Set());
   const vesselsRef = useRef<{ [id: string]: Entity }>({});
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
@@ -47,6 +49,10 @@ export default function WorldPage() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  //APIs
+  const flightApi = "https://opensky-network.org/api/states/all";
+  const vesselApi = "https://ais.marineplan.com/location/v1/locations.json";
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -67,7 +73,8 @@ export default function WorldPage() {
     showPorts: false,
     showBorders: false,
     showFlights: false,
-    showVessels: false
+    showVessels: false,
+    use3DFlightModels: false
   });
 
   // Fetch and render real-time vessels
@@ -97,7 +104,7 @@ export default function WorldPage() {
   const fetchVessels = async (viewer: Viewer) => {
     try {
       // Example endpoint, replace <version> and add any required parameters
-      const res = await axios.get('https://ais.marineplan.com/location/v1/locations.json');
+      const res = await axios.get(vesselApi);
       const data = res.data;
       console.log("Fetched vessels data:", data);
       // Remove previous vessels
@@ -110,9 +117,13 @@ export default function WorldPage() {
         (data.reports as VesselReport[]).forEach((vessel) => {
           const lon = vessel.point?.longitude;
           const lat = vessel.point?.latitude;
+          const entityId = `vessel_${vessel.mmsi}`;
           if (lon && lat) {
+            // Remove existing entity with same id if present
+            const existing = viewer.entities.getById(entityId);
+            if (existing) viewer.entities.remove(existing);
             const entity = viewer.entities.add({
-              id: `vessel_${vessel.mmsi}`,
+              id: entityId,
               position: Cartesian3.fromDegrees(lon, lat, 0),
               billboard: {
                 image: 'https://maps.google.com/mapfiles/kml/shapes/ferry.png',
@@ -120,11 +131,12 @@ export default function WorldPage() {
                 rotation: CesiumMath.toRadians(vessel.bearingDeg || 0),
                 alignedAxis: Cartesian3.UNIT_Z
               },
+              /*
               label: {
                 text: vessel.boatName || vessel.mmsi || '',
                 font: '12px sans-serif',
                 pixelOffset: new Cartesian2(0, -30)
-              }
+              }*/
             });
             vesselsRef.current[vessel.mmsi] = entity;
           }
@@ -171,54 +183,165 @@ export default function WorldPage() {
     flight_iata: string;
   }
 
+  // Distance-based flight management
+  const MAX_FLIGHT_DISTANCE = 2000000; // 2000km in meters
+
   const fetchFlights = async (viewer: Viewer) => {
     try {
-      const res = await axios.get(`http://api.aviationstack.com/v1/flights?access_key=${process.env.AVIATIONSTACK_API_KEY}`);
+      const res = await axios.get(flightApi);
       const data = res.data;
-      // Remove previous flights
-      Object.values(flightsRef.current).forEach(entity => {
-        viewer.entities.remove(entity);
-      });
-      flightsRef.current = {};
-      // Add new flights
-      (data.data as Flight[]).forEach((flight) => {
-        const lon = flight.longitude;
-        const lat = flight.latitude;
-        if (lon && lat) {
-          const entity = viewer.entities.add({
-            id: `flight_${flight.flight_iata}`,
-            position: Cartesian3.fromDegrees(lon, lat, flight.altitude || 10000),
-            billboard: {
-              image: 'https://maps.google.com/mapfiles/kml/shapes/airports.png',
-              scale: 0.7,
-              rotation: CesiumMath.toRadians(flight.heading || 0),
-              alignedAxis: Cartesian3.UNIT_Z
-            },
-            label: {
-              text: flight.flight_iata || "",
-              font: '12px sans-serif',
-              pixelOffset: new Cartesian2(0, -30)
-            }
-          });
-          flightsRef.current[flight.flight_iata] = entity;
-        }
-      });
+      console.log("Fetched flights data:", data);
+
+      // Clear previous flight data
+      allFlightsDataRef.current = [];
+
+      // Store all flights in memory
+      if (Array.isArray(data.states)) {
+        data.states.forEach((state: (string | number | null)[]) => {
+          const lon = state[5];
+          const lat = state[6];
+          const rawAlt = state[7];
+          const rawHeading = state[10];
+          const alt = typeof rawAlt === "number" ? rawAlt : Number(rawAlt) || 10000;
+          const heading = typeof rawHeading === "number" ? rawHeading : Number(rawHeading) || 0;
+          const rawFlightId = state[1];
+          const flightId = typeof rawFlightId === "string" ? rawFlightId.trim() : String(rawFlightId || "").trim();
+
+          if (typeof lon === "number" && typeof lat === "number" && flightId) {
+            allFlightsDataRef.current.push({
+              longitude: lon,
+              latitude: lat,
+              altitude: alt,
+              heading: heading,
+              flight_iata: flightId
+            });
+          }
+        });
+      }
+
+      // Update visible flights based on current camera position
+      updateVisibleFlights(viewer);
+
     } catch (error) {
       console.error("Error fetching flights:", error);
     }
   };
+
+  const calculateDistance = (cameraPos: Cartesian3, flightLon: number, flightLat: number, flightAlt: number) => {
+    const flightPos = Cartesian3.fromDegrees(flightLon, flightLat, flightAlt);
+    return Cartesian3.distance(cameraPos, flightPos);
+  };
+
+  const updateVisibleFlights = (viewer: Viewer) => {
+    if (!viewer || allFlightsDataRef.current.length === 0) return;
+
+    const cameraPosition = viewer.camera.position;
+    const newVisibleFlights = new Set<string>();
+
+    // Check each flight's distance from camera
+    allFlightsDataRef.current.forEach((flight) => {
+      const distance = calculateDistance(cameraPosition, flight.longitude, flight.latitude, flight.altitude || 10000);
+      const entityId = `flight_${flight.flight_iata}`;
+
+      if (distance <= MAX_FLIGHT_DISTANCE) {
+        newVisibleFlights.add(flight.flight_iata);
+
+        // Add flight if not already visible
+        if (!visibleFlightsRef.current.has(flight.flight_iata)) {
+          const existing = viewer.entities.getById(entityId);
+          if (existing) viewer.entities.remove(existing);
+
+          const position = Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.altitude || 10000);
+
+          // Create entity with either 3D model or billboard based on setting
+          const entityConfig: Partial<Entity.ConstructorOptions> = {
+            id: entityId,
+            position: position
+          };
+
+          if (settings.use3DFlightModels) {
+            // Use 3D model
+            entityConfig.model = {
+              uri: '/models/plane.glb',
+              scale: 50,
+              minimumPixelSize: 32,
+              maximumScale: 2000,
+              runAnimations: false,
+              color: Color.WHITE.withAlpha(0.95),
+            };
+            entityConfig.orientation = Transforms.headingPitchRollQuaternion(
+              position,
+              new HeadingPitchRoll(
+                CesiumMath.toRadians(flight.heading || 0),
+                0,
+                0
+              )
+            );
+          } else {
+            // Use billboard icon
+            entityConfig.billboard = {
+              image: 'https://maps.google.com/mapfiles/kml/shapes/airports.png',
+              scale: 0.5,
+              rotation: CesiumMath.toRadians(flight.heading || 0),
+              alignedAxis: Cartesian3.UNIT_Z
+            };
+            /*
+            entityConfig.label = {
+              text: flight.flight_iata,
+              font: '18px "Segoe UI", Arial, Helvetica, sans-serif',
+              fillColor: Color.WHITE,
+              outlineColor: Color.BLACK,
+              outlineWidth: 4,
+              style: LabelStyle.FILL_AND_OUTLINE,
+              pixelOffset: new Cartesian2(0, -36),
+              scale: 1.2,
+              translucencyByDistance: new NearFarScalar(1.5e3, 1.0, 2.0e7, 0.0),
+              distanceDisplayCondition: new DistanceDisplayCondition(0.0, 2.0e7)
+            };
+            */
+          }
+
+          const entity = viewer.entities.add(entityConfig);
+          flightsRef.current[flight.flight_iata] = entity;
+        }
+      }
+    });
+
+    // Remove flights that are now too far away
+    visibleFlightsRef.current.forEach((flightId) => {
+      if (!newVisibleFlights.has(flightId)) {
+        const entity = flightsRef.current[flightId];
+        if (entity) {
+          viewer.entities.remove(entity);
+          delete flightsRef.current[flightId];
+
+        }
+      }
+    });
+
+    // Update visible flights set
+    visibleFlightsRef.current = newVisibleFlights;
+
+  };
   // Effect to handle real-time flights toggle
+
   useEffect(() => {
     let interval: NodeJS.Timeout | undefined;
-    if (viewerRef.current && settings.showFlights) {
-      // Initial fetch
-      fetchFlights(viewerRef.current);
+    let debounceTimeout: NodeJS.Timeout | undefined;
+    let cameraEventHandler: (() => void) | undefined;
 
-      // Update flights every 60 seconds
-      /* this is commented to preserve API usage limits
+    if (viewerRef.current && settings.showFlights) {
+      const viewer = viewerRef.current;
+
+      // Initial fetch
+      fetchFlights(viewer);
+
+      // Update flights every 60 seconds (commented to preserve API usage limits)
+      /* 
       interval = setInterval(() => {
-        fetchFlights(viewerRef.current!);
-      }, 60000);*/
+        fetchFlights(viewer);
+      }, 60000);
+      */
 
     } else if (viewerRef.current && !settings.showFlights) {
       // Remove all flight entities
@@ -226,18 +349,64 @@ export default function WorldPage() {
         viewerRef.current!.entities.remove(entity);
       });
       flightsRef.current = {};
+      visibleFlightsRef.current.clear();
+      allFlightsDataRef.current = [];
     }
+
     return () => {
       if (interval) clearInterval(interval);
+      if (debounceTimeout) clearTimeout(debounceTimeout);
+      if (cameraEventHandler) cameraEventHandler();
+
       // Clean up on unmount or toggle off
       if (viewerRef.current) {
         Object.values(flightsRef.current).forEach(entity => {
           viewerRef.current!.entities.remove(entity);
         });
         flightsRef.current = {};
+        visibleFlightsRef.current.clear();
+        allFlightsDataRef.current = [];
       }
     };
   }, [settings.showFlights]);
+
+
+  useEffect(() => {
+    if (!viewerRef.current) return;
+
+    const viewer = viewerRef.current;
+
+    const onCameraMoveEnd = () => {
+      if (settings.showFlights) {
+        updateVisibleFlights(viewer);
+      }
+    };
+
+    // Use changed event for more frequent updates, or moveEnd for when movement stops.
+    viewer.camera.changed.addEventListener(onCameraMoveEnd);
+
+    return () => {
+      // Make sure viewer and camera still exist on cleanup
+      if (viewer && !viewer.isDestroyed()) {
+        viewer.camera.changed.removeEventListener(onCameraMoveEnd);
+      }
+    };
+  }, [settings.showFlights]); // Re-attach listener if showFlights changes to get the latest state
+
+  // Effect to handle 3D flight models setting change
+  useEffect(() => {
+    if (viewerRef.current && settings.showFlights) {
+      // Remove all current flight entities
+      Object.values(flightsRef.current).forEach(entity => {
+        viewerRef.current!.entities.remove(entity);
+      });
+      flightsRef.current = {};
+      visibleFlightsRef.current.clear();
+
+      // Re-render flights with new setting
+      updateVisibleFlights(viewerRef.current);
+    }
+  }, [settings.use3DFlightModels]);
 
   // Helper functions for KML management
   const loadKmlData = async (
@@ -313,6 +482,7 @@ export default function WorldPage() {
         infoBox: false,
         selectionIndicator: false,
         fullscreenButton: false,
+
       });
 
       viewerRef.current = viewer;
@@ -558,53 +728,53 @@ export default function WorldPage() {
 
           {/* Control Buttons - Top Right */}
           <div className="absolute top-4 right-4 z-40 flex space-x-2">
-          {/* Help Button */}
-          <button
-            onClick={() => setShowInstructions(true)}
-            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-            title="Controls & Instructions"
-          >
-            <HelpCircle className="w-5 h-5 text-foreground" />
-          </button>
-          {/* Reset View Button */}
-          <button
-            onClick={() => resetView()}
-            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-            title="Reset View"
-          >
-            <MapPinHouse className="w-5 h-5 text-foreground" />
-          </button>
+            {/* Help Button */}
+            <button
+              onClick={() => setShowInstructions(true)}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Controls & Instructions"
+            >
+              <HelpCircle className="w-5 h-5 text-foreground" />
+            </button>
+            {/* Reset View Button */}
+            <button
+              onClick={() => resetView()}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Reset View"
+            >
+              <MapPinHouse className="w-5 h-5 text-foreground" />
+            </button>
 
-          {/* Layers Button */}
-          <button
-            onClick={() => setShowLayers(true)}
-            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-            title="Layers"
-          >
-            <Layers className="w-5 h-5 text-foreground" />
-          </button>
+            {/* Layers Button */}
+            <button
+              onClick={() => setShowLayers(true)}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Layers"
+            >
+              <Layers className="w-5 h-5 text-foreground" />
+            </button>
 
-          {/* Settings Button */}
-          <button
-            onClick={() => setShowSettings(true)}
-            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-            title="Settings"
-          >
-            <Settings className="w-5 h-5 text-foreground" />
-          </button>
+            {/* Settings Button */}
+            <button
+              onClick={() => setShowSettings(true)}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-foreground" />
+            </button>
 
-          {/* Fullscreen Button */}
-          <button
-            onClick={toggleFullscreen}
-            className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-            title="Toggle Fullscreen"
-          >
-            {isFullscreen ? (
-              <Minimize2 className="w-5 h-5 text-foreground" />
-            ) : (
-              <Maximize2 className="w-5 h-5 text-foreground" />
-            )}
-          </button>
+            {/* Fullscreen Button */}
+            <button
+              onClick={toggleFullscreen}
+              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              title="Toggle Fullscreen"
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-5 h-5 text-foreground" />
+              ) : (
+                <Maximize2 className="w-5 h-5 text-foreground" />
+              )}
+            </button>
           </div>
         </>
       )}
@@ -765,29 +935,51 @@ export default function WorldPage() {
                   </div>
                 </div>
               </div>
-                <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
+              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <Plane className="w-5 h-5 text-yellow-400" />
                   <div>
-                  <div className="font-medium text-white">Real-Time Flights</div>
-                  <div className="text-gray-400 text-sm">
-                    Visualize live air traffic
-                    <span className="block text-xs text-yellow-300 mt-1">
-                    (Temporarily disabled to preserve API limits)
-                    </span>
-                  </div>
+                    <div className="font-medium text-white">Real-Time Flights</div>
+                    <div className="text-gray-400 text-sm">
+                      Visualize live air traffic
+                      <span className="block text-xs text-red-400 mt-1">
+                        (Be aware of performance issues)
+                      </span>
+                    </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => updateSetting('showFlights', !settings.showFlights)}
-                  disabled={true}
-                  className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showFlights ? 'bg-yellow-400' : 'bg-gray-700'}`}
-                >
-                  <div
-                  className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showFlights ? 'translate-x-6' : 'translate-x-0.5'}`}
-                  />
-                </button>
+
+                <div className="flex items-center space-x-2">
+                  {settings.showFlights && (
+                    <button
+                      onClick={() => updateSetting('use3DFlightModels', !settings.use3DFlightModels)}
+                      className={`cursor-pointer w-7 h-7 border border-border rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm
+                        ${settings.use3DFlightModels
+                          ? 'bg-yellow-400 hover:bg-yellow-300'
+                          : 'bg-black/60 hover:bg-black/40 backdrop-blur-sm'
+                        }`}
+                      title="Toggle 3D Flight Models"
+                    >
+                      <Box
+                        className="w-5 h-5"
+                        color={settings.use3DFlightModels ? '#fff' : '#facc15'}
+                      />
+                    </button>
+                  )}
+
+                  <button
+                    onClick={() => updateSetting('showFlights', !settings.showFlights)}
+                    disabled={false}
+                    className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showFlights ? 'bg-yellow-400' : 'bg-gray-700'}`}
+                  >
+                    <div
+                      className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showFlights ? 'translate-x-6' : 'translate-x-0.5'}`}
+                    />
+                  </button>
                 </div>
+
+              </div>
+
               {/*
               <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
                 <div className="flex items-center space-x-3">
