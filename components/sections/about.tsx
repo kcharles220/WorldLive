@@ -2,7 +2,7 @@ import { Github, Linkedin, Mail } from "lucide-react";
 
 export function About() {
   return (
-    <section id="about" className="py-32 px-4 sm:px-6 lg:px-8 bg-background">
+    <section id="about" className="py-20 sm:py-32 px-4 sm:px-6 lg:px-8 bg-background">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="text-center mb-20">
@@ -61,7 +61,7 @@ export function About() {
 
           {/* Right Side - Contact */}
           <div className="relative">
-            <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-3xl p-10 shadow-2xl">
+            <div className="bg-card/30 backdrop-blur-sm border border-border/30 rounded-3xl p-6 sm:p-10 shadow-2xl">
               <div className="space-y-8 text-center">
                 <div className="space-y-4">
                   <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-purple-500/10 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/20">
@@ -74,7 +74,7 @@ export function About() {
                 </div>
 
                 {/* Contact Grid */}
-                <div className="flex justify-center gap-4">
+                <div className="flex flex-wrap justify-center gap-4">
                   {[
                     { 
                       icon: Mail, 
@@ -102,7 +102,7 @@ export function About() {
                         href={contact.href}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="group flex flex-col items-center space-y-3 p-5 rounded-2xl border border-border/30 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-border/60 flex-1 min-w-0 max-w-[120px]"
+                        className="group flex flex-col items-center space-y-3 p-5 rounded-2xl border border-border/30 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:border-border/60 w-28 sm:w-32"
                       >
                         <div className="w-12 h-12 bg-white/50 dark:bg-black/20 rounded-xl flex items-center justify-center backdrop-blur-sm group-hover:scale-110 transition-transform duration-300">
                           <IconComponent className={`w-6 h-6 ${contact.iconColor}`} />

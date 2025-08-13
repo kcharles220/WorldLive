@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { useVessels } from "./hooks/useVessels";
+import { useFlights } from "./hooks/useFlights";
 import { useRouter } from "next/navigation";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Entity, Transforms, HeadingPitchRoll } from "cesium";
-import { Color } from "cesium";
-import axios from "axios";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Entity, Transforms, HeadingPitchRoll, Color } from "cesium";
+import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
 import {
@@ -37,24 +38,21 @@ export default function WorldPage() {
   const viewerRef = useRef<Viewer | null>(null);
   const tilesetRef = useRef<Cesium3DTileset | null>(null);
   const airportsRef = useRef<KmlDataSource | null>(null);
-  const flightsRef = useRef<{ [id: string]: Entity }>({});
-  const allFlightsDataRef = useRef<Flight[]>([]);
-  const visibleFlightsRef = useRef<Set<string>>(new Set());
-  const vesselsRef = useRef<{ [id: string]: Entity }>({});
   const statesProvincesRef = useRef<KmlDataSource | null>(null);
   const portsRef = useRef<KmlDataSource | null>(null);
   const bordersRef = useRef<KmlDataSource | null>(null);
-  const maxFlightDistanceRef = useRef<number>(500000);
-  const use3DFlightModelsRef = useRef<boolean>(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-
-  //APIs
-  const flightApi = "https://opensky-network.org/api/states/all";
-  const vesselApi = "https://ais.marineplan.com/location/v1/locations.json";
+  
+  // Flight popup state
+  const [showFlightPopup, setShowFlightPopup] = useState(false);
+  const [selectedFlight, setSelectedFlight] = useState<{
+    icao24: string;
+    flightData?: any;
+  } | null>(null);
 
   // Settings state
   const [settings, setSettings] = useState({
@@ -79,342 +77,33 @@ export default function WorldPage() {
     use3DFlightModels: false
   });
 
-  // Fetch and render real-time vessels
-  interface VesselReport {
-    timeSecUtc: number;
-    point: { latitude: number; longitude: number };
-    destination?: { latitude: number; longitude: number };
-    destinationName?: string;
-    etaSecUtc?: number;
-    boatName?: string;
-    callSign?: string;
-    mmsi: string;
-    lengthMeters?: number;
-    widthMeters?: number;
-    heightMeters?: number;
-    captain?: string;
-    speedKmh?: number;
-    bearingDeg?: number;
-    vesselType?: string;
-    source?: string;
-    boundingBox?: {
-      topLeft: { latitude: number; longitude: number };
-      bottomRight: { latitude: number; longitude: number };
-    };
-  }
+  const { flightsRef, allFlightsDataRef, visibleFlightsRef, fetchFlights, updateVisibleFlights, showPlaneData } = useFlights({
+    viewerRef,
+    showFlights: settings.showFlights,
+    use3DFlightModels: settings.use3DFlightModels,
+    maxFlightDistance: settings.use3DFlightModels ? 2000000 : 20000000, // Much larger distances
+    Cesium,
+  });
 
-  const fetchVessels = async (viewer: Viewer) => {
-    try {
-      // Example endpoint, replace <version> and add any required parameters
-      const res = await axios.get(vesselApi);
-      const data = res.data;
-      console.log("Fetched vessels data:", data);
-      // Remove previous vessels
-      Object.values(vesselsRef.current).forEach(entity => {
-        viewer.entities.remove(entity);
-      });
-      vesselsRef.current = {};
-      // Add new vessels
-      if (data.reports && Array.isArray(data.reports)) {
-        (data.reports as VesselReport[]).forEach((vessel) => {
-          const lon = vessel.point?.longitude;
-          const lat = vessel.point?.latitude;
-          const entityId = `vessel_${vessel.mmsi}`;
-          if (lon && lat) {
-            // Remove existing entity with same id if present
-            const existing = viewer.entities.getById(entityId);
-            if (existing) viewer.entities.remove(existing);
-            const entity = viewer.entities.add({
-              id: entityId,
-              position: Cartesian3.fromDegrees(lon, lat, 0),
-              billboard: {
-                image: 'https://maps.google.com/mapfiles/kml/shapes/ferry.png',
-                scale: 0.7,
-                rotation: CesiumMath.toRadians(vessel.bearingDeg || 0),
-                alignedAxis: Cartesian3.UNIT_Z
-              },
-              /*
-              label: {
-                text: vessel.boatName || vessel.mmsi || '',
-                font: '12px sans-serif',
-                pixelOffset: new Cartesian2(0, -30)
-              }*/
-            });
-            vesselsRef.current[vessel.mmsi] = entity;
-          }
-        });
-      }
-    } catch (error) {
-      console.error("Error fetching vessels:", error);
-    }
-  };
-
-  // Effect to handle real-time vessels toggle
+  // Handle plane click events
   useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
-    if (viewerRef.current && settings.showVessels) {
-      fetchVessels(viewerRef.current);
-      // Uncomment to poll every 60s (API usage caution)
-      /*
-      interval = setInterval(() => {
-        fetchVessels(viewerRef.current!);
-      }, 60000);
-      */
-    } else if (viewerRef.current && !settings.showVessels) {
-      Object.values(vesselsRef.current).forEach(entity => {
-        viewerRef.current!.entities.remove(entity);
-      });
-      vesselsRef.current = {};
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-      if (viewerRef.current) {
-        Object.values(vesselsRef.current).forEach(entity => {
-          viewerRef.current!.entities.remove(entity);
-        });
-        vesselsRef.current = {};
-      }
-    };
-  }, [settings.showVessels]);
-  // Fetch and render real-time flights
-  interface Flight {
-    longitude: number;
-    latitude: number;
-    altitude?: number;
-    heading?: number;
-    flight_iata: string;
-  }
-
-
-  const fetchFlights = async (viewer: Viewer) => {
-    try {
-      const res = await axios.get(flightApi);
-      const data = res.data;
-      console.log("Fetched flights data:", data);
-
-      // Clear previous flight data
-      allFlightsDataRef.current = [];
-
-      // Store all flights in memory
-      if (Array.isArray(data.states)) {
-        data.states.forEach((state: (string | number | null)[]) => {
-          const lon = state[5];
-          const lat = state[6];
-          const rawAlt = state[7];
-          const rawHeading = state[10];
-          const alt = typeof rawAlt === "number" ? rawAlt : Number(rawAlt) || 10000;
-          const heading = typeof rawHeading === "number" ? rawHeading : Number(rawHeading) || 0;
-          const rawFlightId = state[1];
-          const flightId = typeof rawFlightId === "string" ? rawFlightId.trim() : String(rawFlightId || "").trim();
-
-          if (typeof lon === "number" && typeof lat === "number" && flightId) {
-            allFlightsDataRef.current.push({
-              longitude: lon,
-              latitude: lat,
-              altitude: alt,
-              heading: heading,
-              flight_iata: flightId
-            });
-          }
-        });
-      }
-
-      // Update visible flights based on current camera position
-      updateVisibleFlights(viewer);
-
-    } catch (error) {
-      console.error("Error fetching flights:", error);
-    }
-  };
-
-  const calculateDistance = (cameraPos: Cartesian3, flightLon: number, flightLat: number, flightAlt: number) => {
-    const flightPos = Cartesian3.fromDegrees(flightLon, flightLat, flightAlt);
-    return Cartesian3.distance(cameraPos, flightPos);
-  };
-
-  const updateVisibleFlights = (viewer: Viewer) => {
-    updateVisibleFlightsWithDistance(viewer, maxFlightDistanceRef.current, use3DFlightModelsRef.current);
-  };
-
-  const updateVisibleFlightsWithDistance = (viewer: Viewer, maxDistance: number, use3DModels: boolean) => {
-    if (!viewer || allFlightsDataRef.current.length === 0) return;
-
-    const cameraPosition = viewer.camera.position;
-    const newVisibleFlights = new Set<string>();
-    console.log("Is 3D?:", use3DModels);
-    console.log("MaxDistance:", maxDistance);
-    // Check each flight's distance from camera
-    allFlightsDataRef.current.forEach((flight) => {
-      const distance = calculateDistance(cameraPosition, flight.longitude, flight.latitude, flight.altitude || 10000);
-      const entityId = `flight_${flight.flight_iata}`;
-
-
-      if (distance <= maxDistance) {
-        newVisibleFlights.add(flight.flight_iata);
-
-        // Add flight if not already visible
-        if (!visibleFlightsRef.current.has(flight.flight_iata)) {
-          const existing = viewer.entities.getById(entityId);
-          if (existing) viewer.entities.remove(existing);
-
-          const position = Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.altitude || 10000);
-
-          // Create entity with either 3D model or billboard based on setting
-          const entityConfig: Partial<Entity.ConstructorOptions> = {
-            id: entityId,
-            position: position
-          };
-          if (use3DModels) {
-            // Use 3D model
-            entityConfig.model = {
-              uri: '/models/plane.glb',
-              scale: 50,
-              minimumPixelSize: 32,
-              maximumScale: 2000,
-              runAnimations: false,
-              color: Color.WHITE.withAlpha(0.95),
-            };
-            entityConfig.orientation = Transforms.headingPitchRollQuaternion(
-              position,
-              new HeadingPitchRoll(
-                CesiumMath.toRadians(flight.heading || 0),
-                0,
-                0
-              )
-            );
-          } else {
-            // Use billboard icon
-            entityConfig.billboard = {
-              image: 'https://maps.google.com/mapfiles/kml/shapes/airports.png',
-              scale: 0.5,
-              rotation: CesiumMath.toRadians(flight.heading || 0),
-              alignedAxis: Cartesian3.UNIT_Z
-            };
-            /*
-            entityConfig.label = {
-              text: flight.flight_iata,
-              font: '18px "Segoe UI", Arial, Helvetica, sans-serif',
-              fillColor: Color.WHITE,
-              outlineColor: Color.BLACK,
-              outlineWidth: 4,
-              style: LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cartesian2(0, -36),
-              scale: 1.2,
-              translucencyByDistance: new NearFarScalar(1.5e3, 1.0, 2.0e7, 0.0),
-              distanceDisplayCondition: new DistanceDisplayCondition(0.0, 2.0e7)
-            };
-            */
-          }
-
-          const entity = viewer.entities.add(entityConfig);
-          flightsRef.current[flight.flight_iata] = entity;
-        }
-      }
-    });
-
-    // Remove flights that are now too far away
-    visibleFlightsRef.current.forEach((flightId) => {
-      if (!newVisibleFlights.has(flightId)) {
-        const entity = flightsRef.current[flightId];
-        if (entity) {
-          viewer.entities.remove(entity);
-          delete flightsRef.current[flightId];
-
-        }
-      }
-    });
-
-    // Update visible flights set
-    visibleFlightsRef.current = newVisibleFlights;
-
-  };
-  // Effect to handle real-time flights toggle
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout | undefined;
-    let debounceTimeout: NodeJS.Timeout | undefined;
-    let cameraEventHandler: (() => void) | undefined;
-
-    if (viewerRef.current && settings.showFlights) {
-      const viewer = viewerRef.current;
-
-      // Initial fetch
-      fetchFlights(viewer);
-
-      // Update flights every 60 seconds (commented to preserve API usage limits)
-      /* 
-      interval = setInterval(() => {
-        fetchFlights(viewer);
-      }, 60000);
-      */
-
-    } else if (viewerRef.current && !settings.showFlights) {
-      // Remove all flight entities
-      Object.values(flightsRef.current).forEach(entity => {
-        viewerRef.current!.entities.remove(entity);
-      });
-      flightsRef.current = {};
-      visibleFlightsRef.current.clear();
-      allFlightsDataRef.current = [];
-    }
-
-    return () => {
-      if (interval) clearInterval(interval);
-      if (debounceTimeout) clearTimeout(debounceTimeout);
-      if (cameraEventHandler) cameraEventHandler();
-
-      // Clean up on unmount or toggle off
-      if (viewerRef.current) {
-        Object.values(flightsRef.current).forEach(entity => {
-          viewerRef.current!.entities.remove(entity);
-        });
-        flightsRef.current = {};
-        visibleFlightsRef.current.clear();
-        allFlightsDataRef.current = [];
-      }
-    };
-  }, [settings.showFlights]);
-
-
-  useEffect(() => {
-    if (!viewerRef.current) return;
-
-    const viewer = viewerRef.current;
-
-    const onCameraMoveEnd = () => {
-      if (settings.showFlights) {
-        updateVisibleFlights(viewer);
-      }
+    const handlePlaneClick = (event: any) => {
+      const { icao24, flightData } = event.detail;
+      console.log("Plane clicked:", flightData);
+      setSelectedFlight({ icao24, flightData });
+      setShowFlightPopup(true);
     };
 
-    // Use changed event for more frequent updates, or moveEnd for when movement stops.
-    viewer.camera.changed.addEventListener(onCameraMoveEnd);
+    window.addEventListener('planeClicked', handlePlaneClick);
+    return () => window.removeEventListener('planeClicked', handlePlaneClick);
+  }, []);
 
-    return () => {
-      // Make sure viewer and camera still exist on cleanup
-      if (viewer && !viewer.isDestroyed()) {
-        viewer.camera.changed.removeEventListener(onCameraMoveEnd);
-      }
-    };
-  }, [settings.showFlights]);
-
-
-  useEffect(() => {
-    const newDistance = settings.use3DFlightModels ? 500000 : 4000000;
-    maxFlightDistanceRef.current = newDistance;
-    use3DFlightModelsRef.current = settings.use3DFlightModels;
-
-    if (viewerRef.current && settings.showFlights) {
-      Object.values(flightsRef.current).forEach(entity => {
-        viewerRef.current!.entities.remove(entity);
-      });
-      flightsRef.current = {};
-      visibleFlightsRef.current.clear();
-
-      // Re-render flights with new setting and correct distance
-      updateVisibleFlightsWithDistance(viewerRef.current, newDistance, settings.use3DFlightModels);
-    }
-  }, [settings.use3DFlightModels]);
+  // Vessel logic handled by useVessels hook
+  const { fetchVessels, vesselsRef } = useVessels({
+    viewerRef,
+    showVessels: settings.showVessels,
+    Cesium
+  });
 
   // Helper functions for KML management
   const loadKmlData = async (
@@ -1341,6 +1030,207 @@ export default function WorldPage() {
                 </div>
 
 
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Flight Popup */}
+      {showFlightPopup && selectedFlight && (
+        <div className="absolute top-16 left-4 bottom-4 z-40 max-w-md w-90 flex flex-col">
+          <div className="bg-black/95 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm flex flex-col h-full">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-800 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-yellow-500 border border-yellow-400 rounded-xl flex items-center justify-center">
+                    <Plane className="w-5 h-5 text-black" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-white">{selectedFlight.flightData.callsign}</h3>
+                    <p className="text-sm text-gray-400">Live Flight Data</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowFlightPopup(false)}
+                  className="cursor-pointer w-8 h-8 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg flex items-center justify-center transition-all duration-200"
+                  title="Close"
+                >
+                  <X className="w-4 h-4 text-gray-300" />
+                </button>
+              </div>
+            </div>
+            
+            {/* Content */}
+            <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
+              {selectedFlight.flightData && (
+                <>
+                  {/* Basic Info Section */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Basic Information</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">ICAO24</span>
+                        <span className="text-white font-mono text-sm">{selectedFlight.flightData.icao24 || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Callsign</span>
+                        <span className="text-white font-mono text-sm">{selectedFlight.flightData.callsign?.trim() || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Origin Country</span>
+                        <span className="text-white text-sm">{selectedFlight.flightData.origin_country || 'N/A'}</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Squawk</span>
+                        <span className="text-white font-mono text-sm">{selectedFlight.flightData.squawk || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Position Section */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Position</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Longitude</span>
+                        <span className="text-white font-mono text-sm">{selectedFlight.flightData.longitude?.toFixed(6) || 'N/A'}°</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Latitude</span>
+                        <span className="text-white font-mono text-sm">{selectedFlight.flightData.latitude?.toFixed(6) || 'N/A'}°</span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">On Ground</span>
+                        <span className={`text-sm font-medium ${selectedFlight.flightData.on_ground ? 'text-orange-400' : 'text-green-400'}`}>
+                          {selectedFlight.flightData.on_ground ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Altitude & Movement Section */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Altitude & Movement</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Barometric Alt.</span>
+                        <span className="text-white font-mono text-sm">
+                          {selectedFlight.flightData.baro_altitude ? `${Math.round(selectedFlight.flightData.baro_altitude).toLocaleString()} m` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Geometric Alt.</span>
+                        <span className="text-white font-mono text-sm">
+                          {selectedFlight.flightData.geo_altitude ? `${Math.round(selectedFlight.flightData.geo_altitude).toLocaleString()} m` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Velocity</span>
+                        <span className="text-white font-mono text-sm">
+                          {selectedFlight.flightData.velocity ? `${Math.round(selectedFlight.flightData.velocity * 3.6)} km/h` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">True Track</span>
+                        <span className="text-white font-mono text-sm">
+                          {selectedFlight.flightData.true_track ? `${Math.round(selectedFlight.flightData.true_track)}°` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Vertical Rate</span>
+                        <span className={`font-mono text-sm ${
+                          selectedFlight.flightData.vertical_rate > 0 ? 'text-green-400' : 
+                          selectedFlight.flightData.vertical_rate < 0 ? 'text-red-400' : 'text-white'
+                        }`}>
+                          {selectedFlight.flightData.vertical_rate ? 
+                            `${selectedFlight.flightData.vertical_rate > 0 ? '+' : ''}${selectedFlight.flightData.vertical_rate.toFixed(1)} m/s` : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Aircraft Info Section */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Aircraft Information</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Category</span>
+                        <span className="text-white text-sm">
+                          {(() => {
+                            const categories = [
+                              'No information', 'No ADS-B Info', 'Light (< 15500 lbs)', 'Small (15500-75000 lbs)',
+                              'Large (75000-300000 lbs)', 'High Vortex Large', 'Heavy (> 300000 lbs)', 'High Performance',
+                              'Rotorcraft', 'Glider', 'Lighter-than-air', 'Parachutist', 'Ultralight', 'Reserved',
+                              'UAV', 'Space Vehicle', 'Emergency Vehicle', 'Service Vehicle', 'Point Obstacle',
+                              'Cluster Obstacle', 'Line Obstacle'
+                            ];
+                            return categories[selectedFlight.flightData.category] || 'Unknown';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Position Source</span>
+                        <span className="text-white text-sm">
+                          {(() => {
+                            const sources = ['ADS-B', 'ASTERIX', 'MLAT', 'FLARM'];
+                            return sources[selectedFlight.flightData.position_source] || 'Unknown';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Special Purpose</span>
+                        <span className={`text-sm font-medium ${selectedFlight.flightData.spi ? 'text-yellow-400' : 'text-gray-400'}`}>
+                          {selectedFlight.flightData.spi ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Timestamps Section */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-300 uppercase tracking-wider mb-3">Timestamps</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Last Contact</span>
+                        <span className="text-white text-sm">
+                          {selectedFlight.flightData.last_contact ? 
+                            new Date(selectedFlight.flightData.last_contact * 1000).toLocaleTimeString() : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
+                        <span className="text-gray-400 text-sm font-medium">Position Update</span>
+                        <span className="text-white text-sm">
+                          {selectedFlight.flightData.time_position ? 
+                            new Date(selectedFlight.flightData.time_position * 1000).toLocaleTimeString() : 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+              
+              {!selectedFlight.flightData && (
+                <div className="p-4 bg-gray-900/30 rounded-lg border border-gray-800">
+                  <div className="flex items-center space-x-2 mb-2">
+                    <div className="w-4 h-4 bg-red-500/20 rounded border border-red-500/30 flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-red-400 rounded-full"></div>
+                    </div>
+                    <span className="text-red-400 text-sm font-medium">No Data Available</span>
+                  </div>
+                  <p className="text-gray-400 text-xs leading-relaxed">
+                    Flight data is not available for this aircraft.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Footer - Status Indicator */}
+            <div className="p-4 border-t border-gray-800 flex-shrink-0">
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-green-400 text-sm font-medium">Live Tracking</span>
               </div>
             </div>
           </div>
