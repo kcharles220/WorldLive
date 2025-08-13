@@ -42,13 +42,16 @@ export function useFlights({
     viewerRef,
     showFlights,
     use3DFlightModels,
-    Cesium
+    Cesium,
+    onError
 }: {
     viewerRef: React.MutableRefObject<Viewer | null>;
     showFlights: boolean;
     use3DFlightModels: boolean;
     maxFlightDistance: number;
     Cesium: typeof import("cesium");
+    onError?: (err: string) => void; // <-- add this
+
 }) {
     const flightsRef = useRef<{ [id: string]: Entity }>({});
     const allFlightsDataRef = useRef<Flight[]>([]);
@@ -119,7 +122,15 @@ export function useFlights({
 
             updateFlightDisplay(viewer);
         } catch (error) {
-            console.error("Error fetching flights:", error);
+
+            if (onError) {
+                onError("Failed to fetch flight data. Please try again later.");
+            }
+            if (axios.isAxiosError(error)) {
+                console.error("Error fetching flights:", error.response?.data);
+            } else {
+                console.error("Error fetching flights:", error);
+            }
         }
     };
 
@@ -127,7 +138,7 @@ export function useFlights({
     const calculateDistance = (viewer: Viewer, flight: Flight): number => {
         const cameraCartographic = viewer.camera.positionCartographic;
         const flightCartographic = Cesium.Cartographic.fromDegrees(flight.longitude, flight.latitude);
-        
+
         return Cesium.Cartesian3.distance(
             Cesium.Cartographic.toCartesian(cameraCartographic),
             Cesium.Cartographic.toCartesian(flightCartographic)
@@ -155,7 +166,7 @@ export function useFlights({
             maxDistance = 5000000; // 5,000 km
             maxFlights = use3DFlightModels ? 100 : 400;
             priorityRadius = 2000000;
-        } else { 
+        } else {
             maxDistance = 2000000; // 2,000 km
             maxFlights = use3DFlightModels ? 150 : 600;
             priorityRadius = 1000000;
@@ -169,7 +180,7 @@ export function useFlights({
                 const altitudeFactor = (flight.baro_altitude || 0) / 15000; // Normalize altitude
                 const distanceFactor = Math.max(0, 1 - (distance / priorityRadius));
                 const priority = distanceFactor + altitudeFactor * 0.3;
-                
+
                 return { flight, distance, priority };
             })
             .filter(({ distance }) => distance <= maxDistance)
@@ -184,7 +195,7 @@ export function useFlights({
     const hasCameraMovedSignificantly = (viewer: Viewer): boolean => {
         const currentPosition = viewer.camera.position;
         const currentHeight = viewer.camera.positionCartographic.height;
-        
+
         if (!lastCameraPosition.current) {
             lastCameraPosition.current = currentPosition.clone();
             lastCameraHeight.current = currentHeight;
@@ -193,18 +204,18 @@ export function useFlights({
 
         const distanceMoved = Cesium.Cartesian3.distance(currentPosition, lastCameraPosition.current);
         const heightChange = Math.abs(currentHeight - lastCameraHeight.current);
-        
+
         // Adaptive thresholds based on camera height
         const heightThreshold = currentHeight * 0.1; // 10% height change
         const distanceThreshold = currentHeight * 0.05; // 5% of height as distance threshold
-        
+
         const significantMove = distanceMoved > distanceThreshold || heightChange > heightThreshold;
-        
+
         if (significantMove) {
             lastCameraPosition.current = currentPosition.clone();
             lastCameraHeight.current = currentHeight;
         }
-        
+
         return significantMove;
     };
 
@@ -213,7 +224,7 @@ export function useFlights({
         const flightId = flight.icao24;
         const entityId = `flight_${flightId}`;
         const position = Cesium.Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.baro_altitude || 10000);
-        
+
         const entityConfig: Parameters<typeof viewer.entities.add>[0] = {
             id: entityId,
             position: position,
@@ -252,10 +263,10 @@ export function useFlights({
     // Smart entity management with dynamic LOD
     const updateFlightDisplay = useCallback(throttle((viewer: Viewer) => {
         if (!hasCameraMovedSignificantly(viewer)) return;
-        
+
         const selectedFlights = selectFlightsToShow(viewer);
         const selectedFlightIds = new Set(selectedFlights.map(f => f.icao24));
-        
+
         // Remove entities that are no longer needed
         const currentEntityIds = new Set(Object.keys(flightsRef.current));
         currentEntityIds.forEach(flightId => {
@@ -267,7 +278,7 @@ export function useFlights({
                 }
             }
         });
-        
+
         // Add new entities for selected flights
         selectedFlights.forEach(flight => {
             const flightId = flight.icao24;
@@ -282,12 +293,12 @@ export function useFlights({
                 // Update existing entity position and orientation
                 const entity = flightsRef.current[flightId];
                 const position = Cesium.Cartesian3.fromDegrees(
-                    flight.longitude, 
-                    flight.latitude, 
+                    flight.longitude,
+                    flight.latitude,
                     flight.baro_altitude || 10000
                 );
                 entity.position = new Cesium.ConstantPositionProperty(position);
-                
+
                 if (use3DFlightModels && entity.orientation) {
                     entity.orientation = new Cesium.ConstantProperty(
                         Cesium.Transforms.headingPitchRollQuaternion(
@@ -306,7 +317,7 @@ export function useFlights({
                 }
             }
         });
-        
+
         console.log(`Showing ${selectedFlights.length} flights out of ${allFlightsDataRef.current.length} total`);
     }, 250), []);
 
@@ -314,11 +325,11 @@ export function useFlights({
         if (!viewerRef.current) return;
 
         const viewer = viewerRef.current;
-        
+
         if (showFlights) {
             // Initial fetch and display
             fetchFlights(viewer);
-            
+
             // Set up camera event listeners for dynamic updates
             const removeListener = viewer.camera.changed.addEventListener(() => {
                 updateFlightDisplay(viewer);

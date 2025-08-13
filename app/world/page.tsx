@@ -31,7 +31,9 @@ import {
   CloudRain,
   Activity,
   Box,
-  ChevronRight
+  ChevronRight,
+  AlertTriangle,
+  ChevronLeft
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -48,6 +50,7 @@ export default function WorldPage() {
   const [showInstructions, setShowInstructions] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showDataLayers, setShowDataLayers] = useState(true);
+  const [error, setError] = useState<{ title: string; message: string } | null>(null);
 
   // Flight popup state
   const [showFlightPopup, setShowFlightPopup] = useState(false);
@@ -85,6 +88,13 @@ export default function WorldPage() {
     use3DFlightModels: settings.use3DFlightModels,
     maxFlightDistance: settings.use3DFlightModels ? 2000000 : 20000000, // Much larger distances
     Cesium,
+    onError: (err: string) => {
+      setSettings(prev => ({ ...prev, showFlights: false }));
+      setError({
+        title: "Flight Data Error",
+        message: err
+      });
+    }
   });
 
   // Handle plane click events
@@ -390,6 +400,36 @@ export default function WorldPage() {
 
   return (
     <div className="h-screen w-full bg-background relative">
+      <style jsx>{`
+                    @keyframes slideX {
+                      0%, 100% { transform: translateX(0px); }
+                      50% { transform: translateX(-4px); }
+                    }
+                  `}</style>
+      {/* Error Notification */}
+      {error && (
+        <div className="fixed top-4 inset-x-4 z-[9999] max-w-md mx-auto">
+          <div className="bg-red-500/20 backdrop-blur-xl border border-red-500/20 rounded-2xl p-4 shadow-2xl animate-in slide-in-from-top-2 duration-300 hover:scale-[1.02] transition-all">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                <AlertTriangle className="w-4 h-4 text-red-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className="text-white font-semibold text-sm">{error.title}</h4>
+                <p className="text-red-200/80 text-xs mt-1 leading-relaxed">{error.message}</p>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="cursor-pointer w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 flex-shrink-0"
+                aria-label="Dismiss error"
+              >
+                <X className="w-3.5 h-3.5 text-white/70" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading Animation */}
       {isLoading && (
         <div className="absolute inset-0 z-50 bg-black flex items-center justify-center">
@@ -467,23 +507,25 @@ export default function WorldPage() {
           </div>
 
           {/* Data Layers Toggle Button - Below Fullscreen Button */}
-          {/* Data Layers Toggle Button - Below Fullscreen Button */}
           {!showDataLayers && (
             <button
               onClick={() => setShowDataLayers(true)}
-              className="cursor-pointer fixed top-18 right-4 z-50 w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 shadow-sm transition-all duration-200"
+              className="gap-4 cursor-pointer fixed top-16 right-4 z-50 w-22 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 shadow-sm transition-all duration-200"
               title="Show Data Layers"
             >
+              <ChevronLeft className="w-4 h-4 text-foreground mr-1 animate-pulse" style={{
+                animation: 'slideX 4s ease-in-out infinite'
+              }} />
               <Layers className="w-5 h-5 text-foreground" />
+
             </button>
           )}
           {/* Data Layers Panel - Below Fullscreen Button */}
-            <div
-            className={`fixed top-18 right-4 z-50 transition-all duration-300 ease-in-out ${
-              showDataLayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
-            }`}
+          <div
+            className={`fixed top-16 right-4 z-50 transition-all duration-300 ease-in-out ${showDataLayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
+              }`}
             style={{ width: '18rem', maxWidth: '90vw' }}
-            >
+          >
             <div className="bg-black/80 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl w-full p-4">
               {/* Header with Close Button */}
               <div className="flex items-center justify-between mb-4">
@@ -535,7 +577,7 @@ export default function WorldPage() {
                     </button>
                   </div>
 
-                  {/* 3D Models Toggle - Minimal Design */}
+                  {/* 3D Models Toggle*/}
                   {settings.showFlights && (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center space-x-2">
@@ -616,7 +658,7 @@ export default function WorldPage() {
 
               {/* Quick Info */}
               <div className="mt-4 pt-4 border-t border-gray-800">
-                <div className="text-xs text-red-500">
+                <div className="text-xs text-red-500 opacity-90">
                   Be aware of potential performance issues!
                 </div>
               </div>
