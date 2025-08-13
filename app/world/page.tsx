@@ -29,8 +29,9 @@ import {
   MapPinHouse,
   Sparkles,
   CloudRain,
+  Activity,
   Box,
-  Activity
+  ChevronRight
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -45,9 +46,9 @@ export default function WorldPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showInstructions, setShowInstructions] = useState(false);
-  const [showLayers, setShowLayers] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  
+  const [showDataLayers, setShowDataLayers] = useState(true);
+
   // Flight popup state
   const [showFlightPopup, setShowFlightPopup] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<{
@@ -78,7 +79,7 @@ export default function WorldPage() {
     use3DFlightModels: false
   });
 
-  const {  } = useFlights({
+  const { allFlightsDataRef } = useFlights({
     viewerRef,
     showFlights: settings.showFlights,
     use3DFlightModels: settings.use3DFlightModels,
@@ -442,15 +443,6 @@ export default function WorldPage() {
               <MapPinHouse className="w-5 h-5 text-foreground" />
             </button>
 
-            {/* Layers Button */}
-            <button
-              onClick={() => setShowLayers(true)}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
-              title="Layers"
-            >
-              <Layers className="w-5 h-5 text-foreground" />
-            </button>
-
             {/* Settings Button */}
             <button
               onClick={() => setShowSettings(true)}
@@ -472,6 +464,163 @@ export default function WorldPage() {
                 <Maximize2 className="w-5 h-5 text-foreground" />
               )}
             </button>
+          </div>
+
+          {/* Data Layers Toggle Button - Below Fullscreen Button */}
+          {/* Data Layers Toggle Button - Below Fullscreen Button */}
+          {!showDataLayers && (
+            <button
+              onClick={() => setShowDataLayers(true)}
+              className="cursor-pointer fixed top-18 right-4 z-50 w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 shadow-sm transition-all duration-200"
+              title="Show Data Layers"
+            >
+              <Layers className="w-5 h-5 text-foreground" />
+            </button>
+          )}
+          {/* Data Layers Panel - Below Fullscreen Button */}
+            <div
+            className={`fixed top-18 right-4 z-50 transition-all duration-300 ease-in-out ${
+              showDataLayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
+            }`}
+            style={{ width: '18rem', maxWidth: '90vw' }}
+            >
+            <div className="bg-black/80 backdrop-blur-md border border-gray-700 rounded-2xl shadow-2xl w-full p-4">
+              {/* Header with Close Button */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-blue-500/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                    <Layers className="w-4 h-4 text-blue-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-white font-semibold">Data Layers</h3>
+                    <p className="text-gray-400 text-xs">Real-time world data</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowDataLayers(false)}
+                  className="cursor-pointer w-8 h-8 bg-gray-800/50 hover:bg-gray-700 border border-gray-600 rounded-lg flex items-center justify-center transition-all duration-200 group"
+                  title="Hide Data Layers"
+                >
+                  <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-white transition-colors duration-200" />
+                </button>
+              </div>
+
+
+              <div className="space-y-3">
+                {/* Real-Time Flights */}
+                <div className="p-4 bg-gray-900/50 border border-gray-700 rounded-xl hover:border-gray-600 transition-all duration-200">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-yellow-500/20 border border-yellow-500/30 rounded-lg flex items-center justify-center">
+                        <Plane className="w-4 h-4 text-yellow-400" />
+                      </div>
+                      <div>
+                        <div className="text-white font-medium">Live Flights</div>
+                        <div className="text-gray-400 text-xs">
+                          {settings.showFlights ? (
+                            <span className="text-green-400">Active • {allFlightsDataRef.current?.length || 0} flights</span>
+                          ) : (
+                            'Real-time air traffic'
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateSetting('showFlights', !settings.showFlights)}
+                      className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showFlights ? 'bg-yellow-400' : 'bg-gray-700'}`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showFlights ? 'translate-x-6' : 'translate-x-0.5'}`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* 3D Models Toggle - Minimal Design */}
+                  {settings.showFlights && (
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Box className="w-4 h-4 text-gray-400" />
+                        <span className="text-gray-300 text-sm">3D Models</span>
+                      </div>
+                      <button
+                        onClick={() => updateSetting('use3DFlightModels', !settings.use3DFlightModels)}
+                        className={`cursor-pointer w-8 h-8 rounded-lg transition-all duration-200 flex items-center justify-center ${settings.use3DFlightModels
+                          ? 'bg-yellow-400/20 border border-yellow-400/40'
+                          : 'bg-gray-700/50 border border-gray-600'
+                          }`}
+                        title={settings.use3DFlightModels ? "Disable 3D Models" : "Enable 3D Models"}
+                      >
+                        <Box
+                          className={`w-4 h-4 transition-colors duration-200 ${settings.use3DFlightModels ? 'text-yellow-400' : 'text-gray-400'
+                            }`}
+                        />
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Naval Traffic */}
+                <div className="p-4 bg-gray-900/30 border border-gray-800 rounded-xl opacity-60">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-cyan-500/20 border border-cyan-500/30 rounded-lg flex items-center justify-center">
+                        <Anchor className="w-4 h-4 text-cyan-400" />
+                      </div>
+                      <div>
+                        <div className="text-gray-300 font-medium">Naval Traffic</div>
+                        <div className="text-gray-500 text-xs">Coming soon...</div>
+                      </div>
+                    </div>
+                    <div className="w-12 h-6 bg-gray-800 rounded-full">
+                      <div className="w-5 h-5 bg-gray-600 rounded-full shadow-lg translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Weather Layer */}
+                <div className="p-4 bg-gray-900/30 border border-gray-800 rounded-xl opacity-60">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-blue-500/20 border border-blue-500/30 rounded-lg flex items-center justify-center">
+                        <CloudRain className="w-4 h-4 text-blue-400" />
+                      </div>
+                      <div>
+                        <div className="text-gray-300 font-medium">Weather</div>
+                        <div className="text-gray-500 text-xs">Coming soon...</div>
+                      </div>
+                    </div>
+                    <div className="w-12 h-6 bg-gray-800 rounded-full">
+                      <div className="w-5 h-5 bg-gray-600 rounded-full shadow-lg translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Natural Events */}
+                <div className="p-4 bg-gray-900/30 border border-gray-800 rounded-xl opacity-60">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="w-8 h-8 bg-red-500/20 border border-red-500/30 rounded-lg flex items-center justify-center">
+                        <Activity className="w-4 h-4 text-red-400" />
+                      </div>
+                      <div>
+                        <div className="text-gray-300 font-medium">Natural Events</div>
+                        <div className="text-gray-500 text-xs">Coming soon...</div>
+                      </div>
+                    </div>
+                    <div className="w-12 h-6 bg-gray-800 rounded-full">
+                      <div className="w-5 h-5 bg-gray-600 rounded-full shadow-lg translate-x-0.5" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Info */}
+              <div className="mt-4 pt-4 border-t border-gray-800">
+                <div className="text-xs text-red-500">
+                  Be aware of potential performance issues!
+                </div>
+              </div>
+            </div>
           </div>
         </>
       )}
@@ -593,134 +742,6 @@ export default function WorldPage() {
                       <div className="text-white font-medium text-sm">Pro Tip</div>
                       <div className="text-gray-300 text-sm mt-1">Use the settings panel to customize your viewing experience with different layers and visual effects!</div>
                     </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Layers Modal */}
-      {showLayers && (
-        <div
-          className="absolute inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={(e) => handleModalBackdropClick(e, () => setShowLayers(false))}
-        >
-          <div className="bg-black border border-gray-800 rounded-2xl p-6 max-w-md w-full shadow-2xl">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gray-900 border border-gray-700 rounded-lg flex items-center justify-center">
-                  <Layers className="w-4 h-4 text-white" />
-                </div>
-                <h3 className="text-lg font-bold text-white">Data Layers</h3>
-              </div>
-              <button
-                onClick={() => setShowLayers(false)}
-                className="cursor-pointer w-8 h-8 bg-gray-900 hover:bg-gray-800 border border-gray-700 rounded-lg flex items-center justify-center transition-all duration-200"
-              >
-                <X className="w-4 h-4 text-gray-300" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Globe className="w-5 h-5 text-green-500" />
-                  <div>
-                    <div className="font-medium text-white">Base Imagery</div>
-                    <div className="text-gray-400 text-sm">Bing Maps Satellite</div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Plane className="w-5 h-5 text-yellow-400" />
-                  <div>
-                    <div className="font-medium text-white">Real-Time Flights</div>
-                    <div className="text-gray-400 text-sm">
-                      Visualize live air traffic
-                      <span className="block text-xs text-red-400 mt-1">
-                        (Be aware of performance issues)
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  {settings.showFlights && (
-                    <button
-                      onClick={() => updateSetting('use3DFlightModels', !settings.use3DFlightModels)}
-                      className={`cursor-pointer w-7 h-7 border border-border rounded-lg flex items-center justify-center transition-all duration-200 shadow-sm
-                        ${settings.use3DFlightModels
-                          ? 'bg-yellow-400 hover:bg-yellow-300'
-                          : 'bg-black/60 hover:bg-black/40 backdrop-blur-sm'
-                        }`}
-                      title="Toggle 3D Flight Models"
-                    >
-                      <Box
-                        className="w-5 h-5"
-                        color={settings.use3DFlightModels ? '#fff' : '#facc15'}
-                      />
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => updateSetting('showFlights', !settings.showFlights)}
-                    disabled={false}
-                    className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showFlights ? 'bg-yellow-400' : 'bg-gray-700'}`}
-                  >
-                    <div
-                      className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showFlights ? 'translate-x-6' : 'translate-x-0.5'}`}
-                    />
-                  </button>
-                </div>
-
-              </div>
-
-              {/*
-              <div className="p-4 bg-gray-900 border border-gray-700 rounded-xl flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Anchor className="w-5 h-5 text-cyan-400" />
-                  <div>
-                    <div className="font-medium text-white">Naval Traffic</div>
-                    <div className="text-gray-400 text-sm">Track live vessels</div>
-                  </div>
-                </div>
-                <button
-                  onClick={() => updateSetting('showVessels', !settings.showVessels)}
-                  className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.showVessels ? 'bg-cyan-400' : 'bg-gray-700'}`}
-                >
-                  <div
-                    className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.showVessels ? 'translate-x-6' : 'translate-x-0.5'}`}
-                  />
-                </button>
-              </div>
-              */}
-              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Anchor className="w-5 h-5 text-cyan-500" />
-
-                  <div>
-                    <div className="font-medium text-gray-300">Naval Traffic</div>
-                    <div className="text-gray-500 text-sm">Coming soon...</div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <CloudRain className="w-5 h-5 text-cyan-100" />
-                  <div>
-                    <div className="font-medium text-gray-300">Weather Layer</div>
-                    <div className="text-gray-500 text-sm">Coming soon...</div>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <Activity className="w-5 h-5 text-red-500" />
-                  <div>
-                    <div className="font-medium text-gray-300">Natural Events</div>
-                    <div className="text-gray-500 text-sm">Coming soon...</div>
                   </div>
                 </div>
               </div>
@@ -1070,7 +1091,7 @@ export default function WorldPage() {
                 </button>
               </div>
             </div>
-            
+
             {/* Content */}
             <div className="p-4 space-y-4 overflow-y-auto custom-scrollbar flex-1">
               {selectedFlight.flightData && (
@@ -1149,11 +1170,10 @@ export default function WorldPage() {
                       </div>
                       <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
                         <span className="text-gray-400 text-sm font-medium">Vertical Rate</span>
-                        <span className={`font-mono text-sm ${
-                          (selectedFlight.flightData.vertical_rate ?? 0) > 0 ? 'text-green-400' : 
+                        <span className={`font-mono text-sm ${(selectedFlight.flightData.vertical_rate ?? 0) > 0 ? 'text-green-400' :
                           (selectedFlight.flightData.vertical_rate ?? 0) < 0 ? 'text-red-400' : 'text-white'
-                        }`}>
-                          {selectedFlight.flightData.vertical_rate ? 
+                          }`}>
+                          {selectedFlight.flightData.vertical_rate ?
                             `${selectedFlight.flightData.vertical_rate > 0 ? '+' : ''}${selectedFlight.flightData.vertical_rate.toFixed(1)} m/s` : 'N/A'}
                         </span>
                       </div>
@@ -1210,14 +1230,14 @@ export default function WorldPage() {
                       <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
                         <span className="text-gray-400 text-sm font-medium">Last Contact</span>
                         <span className="text-white text-sm">
-                          {selectedFlight.flightData.last_contact ? 
+                          {selectedFlight.flightData.last_contact ?
                             new Date(selectedFlight.flightData.last_contact * 1000).toLocaleTimeString() : 'N/A'}
                         </span>
                       </div>
                       <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
                         <span className="text-gray-400 text-sm font-medium">Position Update</span>
                         <span className="text-white text-sm">
-                          {selectedFlight.flightData.time_position ? 
+                          {selectedFlight.flightData.time_position ?
                             new Date(selectedFlight.flightData.time_position * 1000).toLocaleTimeString() : 'N/A'}
                         </span>
                       </div>
@@ -1225,7 +1245,7 @@ export default function WorldPage() {
                   </div>
                 </>
               )}
-              
+
               {!selectedFlight.flightData && (
                 <div className="p-4 bg-gray-900/30 rounded-lg border border-gray-800">
                   <div className="flex items-center space-x-2 mb-2">

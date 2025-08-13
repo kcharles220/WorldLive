@@ -1,6 +1,20 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback } from "react";
 import type { Viewer, Cartesian3, Entity, Cartesian2, HeadingPitchRoll, ScreenSpaceEventHandler } from "cesium";
 import axios from "axios";
+
+// Throttle utility function
+type ThrottledFunction<T extends unknown[]> = (...args: T) => void;
+const throttle = <T extends unknown[]>(func: (...args: T) => void, delay: number): ThrottledFunction<T> => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    return (...args: T) => {
+        if (timeoutId === null) {
+            timeoutId = setTimeout(() => {
+                func(...args);
+                timeoutId = null;
+            }, delay);
+        }
+    };
+};
 
 export interface Flight {
     icao24: string;
@@ -28,7 +42,6 @@ export function useFlights({
     viewerRef,
     showFlights,
     use3DFlightModels,
-    maxFlightDistance,
     Cesium
 }: {
     viewerRef: React.MutableRefObject<Viewer | null>;
@@ -39,7 +52,8 @@ export function useFlights({
 }) {
     const flightsRef = useRef<{ [id: string]: Entity }>({});
     const allFlightsDataRef = useRef<Flight[]>([]);
-    const visibleFlightsRef = useRef<Set<string>>(new Set());
+    const lastCameraPosition = useRef<Cartesian3 | null>(null);
+    const lastCameraHeight = useRef<number>(0);
 
     const flightApi = "https://opensky-network.org/api/states/all";
 
@@ -103,199 +117,212 @@ export function useFlights({
                 allFlightsDataRef.current = [];
             }
 
-            updateVisibleFlights(viewer);
+            updateFlightDisplay(viewer);
         } catch (error) {
             console.error("Error fetching flights:", error);
         }
     };
 
-    const calculateDistance = (cameraPos: Cartesian3, flightLon: number, flightLat: number, flightAlt: number) => {
-        const flightPos = Cesium.Cartesian3.fromDegrees(flightLon, flightLat, flightAlt);
-        return Cesium.Cartesian3.distance(cameraPos, flightPos);
+    // Calculate distance between two points (ignoring altitude for better performance)
+    const calculateDistance = (viewer: Viewer, flight: Flight): number => {
+        const cameraCartographic = viewer.camera.positionCartographic;
+        const flightCartographic = Cesium.Cartographic.fromDegrees(flight.longitude, flight.latitude);
+        
+        return Cesium.Cartesian3.distance(
+            Cesium.Cartographic.toCartesian(cameraCartographic),
+            Cesium.Cartographic.toCartesian(flightCartographic)
+        );
     };
 
-    const updateVisibleFlights = (viewer: Viewer) => {
-        if (!viewer || allFlightsDataRef.current.length === 0) return;
+    // Smart flight selection based on camera position and zoom level
+    const selectFlightsToShow = (viewer: Viewer): Flight[] => {
+        const cameraHeight = viewer.camera.positionCartographic.height;
 
-        const camera = viewer.camera;
-        const cameraHeight = camera.positionCartographic.height;
-        const newVisibleFlights = new Set<string>();
-
-
-
-        // Adaptive parameters based on zoom level for Level of Detail (LOD)
-        // Use much more generous distance calculations to show more flights
-        let adaptiveMaxDistance: number;
-        if (cameraHeight > 10000000) {        // Very high altitude - global view
-            adaptiveMaxDistance = maxFlightDistance; // Show all flights globally
-        } else if (cameraHeight > 5000000) {   // High altitude - continental view
-            adaptiveMaxDistance = Math.min(maxFlightDistance, 50000000); // 50,000 km
-        } else if (cameraHeight > 1000000) {   // Medium altitude - regional view
-            adaptiveMaxDistance = Math.min(maxFlightDistance, 20000000); // 20,000 km
-        } else if (cameraHeight > 100000) {    // Low altitude - local view
-            adaptiveMaxDistance = Math.min(maxFlightDistance, 10000000); // 10,000 km
-        } else {                               // Very low altitude - detailed view
-            adaptiveMaxDistance = Math.min(maxFlightDistance, 5000000);  // 5,000 km
-        }
-
-        // Dynamic flight count limits based on camera height - increased for better visibility
+        // Adaptive parameters based on camera height
+        let maxDistance: number;
         let maxFlights: number;
-        if (cameraHeight > 10000000) {        // Very high altitude - show fewer flights
-            maxFlights = 1000;
-        } else if (cameraHeight > 5000000) {   // High altitude
-            maxFlights = 1500;
-        } else if (cameraHeight > 1000000) {   // Medium altitude
-            maxFlights = 2000;
-        } else {                               // Low altitude - show more detail
-            maxFlights = 2500;
+        let priorityRadius: number;
+
+        if (cameraHeight > 20000000) { // Very high altitude - Global view
+            maxDistance = 50000000; // 50,000 km
+            maxFlights = use3DFlightModels ? 30 : 100;
+            priorityRadius = 10000000;
+        } else if (cameraHeight > 5000000) { // High altitude - Continental view
+            maxDistance = 20000000; // 20,000 km
+            maxFlights = use3DFlightModels ? 50 : 200;
+            priorityRadius = 5000000;
+        } else if (cameraHeight > 1000000) { // Medium altitude - Regional view
+            maxDistance = 5000000; // 5,000 km
+            maxFlights = use3DFlightModels ? 100 : 400;
+            priorityRadius = 2000000;
+        } else { 
+            maxDistance = 2000000; // 2,000 km
+            maxFlights = use3DFlightModels ? 150 : 600;
+            priorityRadius = 1000000;
         }
 
-        // Get viewport rectangle for initial culling
-        let viewRectangle;
-        try {
-            viewRectangle = camera.computeViewRectangle();
-        } catch (error) {
-            console.warn('Could not compute view rectangle, showing all flights:', error);
-            viewRectangle = null;
-        }
-
-        // Hybrid approach: viewport culling + distance sorting + flight limiting
-        const candidateFlights = allFlightsDataRef.current
-            .filter(flight => {
-                // Only apply viewport culling when zoomed in close - not at global scale
-                if (viewRectangle && cameraHeight < 5000000) { // Only apply viewport culling when very zoomed in
-                    const lon = Cesium.Math.toRadians(flight.longitude);
-                    const lat = Cesium.Math.toRadians(flight.latitude);
-
-                    // Large buffer to show flights beyond immediate viewport
-                    const buffer = 2.0; // ~120 degrees buffer - very generous
-                    if (lon < viewRectangle.west - buffer || lon > viewRectangle.east + buffer ||
-                        lat < viewRectangle.south - buffer || lat > viewRectangle.north + buffer) {
-                        return false;
-                    }
-                }
-                // At medium to global scale, show all flights regardless of viewport
-                return true;
-            })
+        // Get flights with distance and priority scoring
+        const flightsWithDistance = allFlightsDataRef.current
             .map(flight => {
-                const distance = calculateDistance(camera.position, flight.longitude, flight.latitude, flight.baro_altitude || 10000);
-                const altitude = flight.baro_altitude || 10000;
-
-                // Calculate flight importance with better global distribution
-                let importance: number;
-                if (cameraHeight > 5000000) {
-                    // For global view, prioritize flights more equally across regions
-                    // Add some randomness to prevent clustering in same areas
-                    const baseImportance = (altitude / 1000) / Math.max(distance / 1000000, 1); // Use distance in Mm for global scale
-                    const randomFactor = 0.5 + Math.random() * 0.5; // 0.5 to 1.0 randomness
-                    importance = baseImportance * randomFactor;
-                } else {
-                    // For closer views, use standard distance-based importance
-                    importance = (altitude / 1000) / Math.max(distance / 1000, 1);
-                }
-
-                return { flight, distance, importance };
+                const distance = calculateDistance(viewer, flight);
+                // Priority: closer flights + higher altitude flights get priority
+                const altitudeFactor = (flight.baro_altitude || 0) / 15000; // Normalize altitude
+                const distanceFactor = Math.max(0, 1 - (distance / priorityRadius));
+                const priority = distanceFactor + altitudeFactor * 0.3;
+                
+                return { flight, distance, priority };
             })
-            .filter(({ distance }) => {
-                const withinDistance = distance <= adaptiveMaxDistance;
-                return withinDistance;
-            })
-            .sort((a, b) => {
-                // At global scale, prioritize geographic distribution over just distance
-                if (cameraHeight > 10000000) {
-                    // For global view, sort more by importance to get better worldwide coverage
-                    return b.importance - a.importance;
-                } else {
-                    // For closer views, sort by importance first, then by distance
-                    if (Math.abs(a.importance - b.importance) > 0.1) {
-                        return b.importance - a.importance; // Higher importance first
-                    }
-                    return a.distance - b.distance; // Closer flights first for same importance
-                }
-            })
-            .slice(0, maxFlights); // Limit total flights for performance
+            .filter(({ distance }) => distance <= maxDistance)
+            .sort((a, b) => b.priority - a.priority) // Highest priority first
+            .slice(0, maxFlights)
+            .map(({ flight }) => flight);
 
-
-
-        // Process only the best candidate flights
-        candidateFlights.forEach(({ flight }) => {
-            const flightId = flight.icao24;
-            newVisibleFlights.add(flightId);
-
-            // Only add if not already visible - avoid redundant entity operations
-            if (!visibleFlightsRef.current.has(flightId)) {
-                const entityId = `flight_${flightId}`;
-                const existing = viewer.entities.getById(entityId);
-                if (existing) viewer.entities.remove(existing);
-
-                const position = Cesium.Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.baro_altitude || 10000);
-                const entityConfig: Parameters<typeof viewer.entities.add>[0] = {
-                    id: entityId,
-                    position: position,
-                };
-
-                if (use3DFlightModels) {
-                    entityConfig.model = {
-                        uri: '/models/plane.glb',
-                        scale: 50,
-                        minimumPixelSize: 32,
-                        maximumScale: 2000,
-                        runAnimations: false,
-                        color: Cesium.Color.WHITE.withAlpha(0.95),
-                    };
-                    entityConfig.orientation = Cesium.Transforms.headingPitchRollQuaternion(
-                        position,
-                        new Cesium.HeadingPitchRoll(
-                            Cesium.Math.toRadians(flight.true_track || 0),
-                            0,
-                            0
-                        ) as HeadingPitchRoll
-                    );
-                } else {
-                    entityConfig.billboard = {
-                        image: 'https://maps.google.com/mapfiles/kml/shapes/airports.png',
-                        scale: 0.5,
-                        rotation: Cesium.Math.toRadians(flight.true_track || 0),
-                        alignedAxis: Cesium.Cartesian3.UNIT_Z,
-                    };
-                }
-
-                const entity = viewer.entities.add(entityConfig);
-                flightsRef.current[flightId] = entity;
-            }
-        });
-
-        // Remove flights that are no longer visible - optimized cleanup
-        const flightsToRemove = Array.from(visibleFlightsRef.current).filter(flightId => !newVisibleFlights.has(flightId));
-        flightsToRemove.forEach(flightId => {
-            const entity = flightsRef.current[flightId];
-            if (entity) {
-                viewer.entities.remove(entity);
-                delete flightsRef.current[flightId];
-            }
-        });
-
-        visibleFlightsRef.current = newVisibleFlights;
+        return flightsWithDistance;
     };
+
+    // Check if camera moved significantly
+    const hasCameraMovedSignificantly = (viewer: Viewer): boolean => {
+        const currentPosition = viewer.camera.position;
+        const currentHeight = viewer.camera.positionCartographic.height;
+        
+        if (!lastCameraPosition.current) {
+            lastCameraPosition.current = currentPosition.clone();
+            lastCameraHeight.current = currentHeight;
+            return true;
+        }
+
+        const distanceMoved = Cesium.Cartesian3.distance(currentPosition, lastCameraPosition.current);
+        const heightChange = Math.abs(currentHeight - lastCameraHeight.current);
+        
+        // Adaptive thresholds based on camera height
+        const heightThreshold = currentHeight * 0.1; // 10% height change
+        const distanceThreshold = currentHeight * 0.05; // 5% of height as distance threshold
+        
+        const significantMove = distanceMoved > distanceThreshold || heightChange > heightThreshold;
+        
+        if (significantMove) {
+            lastCameraPosition.current = currentPosition.clone();
+            lastCameraHeight.current = currentHeight;
+        }
+        
+        return significantMove;
+    };
+
+    // Create a single flight entity
+    const createFlightEntity = (viewer: Viewer, flight: Flight): Entity => {
+        const flightId = flight.icao24;
+        const entityId = `flight_${flightId}`;
+        const position = Cesium.Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.baro_altitude || 10000);
+        
+        const entityConfig: Parameters<typeof viewer.entities.add>[0] = {
+            id: entityId,
+            position: position,
+        };
+
+        if (use3DFlightModels) {
+            entityConfig.model = {
+                uri: '/models/plane.glb',
+                scale: 30,
+                minimumPixelSize: 32,
+                maximumScale: 1000,
+                runAnimations: false,
+                color: Cesium.Color.WHITE.withAlpha(0.95),
+            };
+            entityConfig.orientation = Cesium.Transforms.headingPitchRollQuaternion(
+                position,
+                new Cesium.HeadingPitchRoll(
+                    Cesium.Math.toRadians(flight.true_track || 0),
+                    0,
+                    0
+                ) as HeadingPitchRoll
+            );
+        } else {
+            entityConfig.billboard = {
+                image: '/models/airplane2.svg',
+                scale: 0.5,
+                rotation: Cesium.Math.toRadians(-(flight.true_track || 0)),
+                alignedAxis: Cesium.Cartesian3.UNIT_Z,
+                color: new Cesium.Color(1.0, 1.0, 1.0, 0.9),
+            };
+        }
+
+        return viewer.entities.add(entityConfig);
+    };
+
+    // Smart entity management with dynamic LOD
+    const updateFlightDisplay = useCallback(throttle((viewer: Viewer) => {
+        if (!hasCameraMovedSignificantly(viewer)) return;
+        
+        const selectedFlights = selectFlightsToShow(viewer);
+        const selectedFlightIds = new Set(selectedFlights.map(f => f.icao24));
+        
+        // Remove entities that are no longer needed
+        const currentEntityIds = new Set(Object.keys(flightsRef.current));
+        currentEntityIds.forEach(flightId => {
+            if (!selectedFlightIds.has(flightId)) {
+                const entity = flightsRef.current[flightId];
+                if (entity) {
+                    viewer.entities.remove(entity);
+                    delete flightsRef.current[flightId];
+                }
+            }
+        });
+        
+        // Add new entities for selected flights
+        selectedFlights.forEach(flight => {
+            const flightId = flight.icao24;
+            if (!flightsRef.current[flightId]) {
+                try {
+                    const entity = createFlightEntity(viewer, flight);
+                    flightsRef.current[flightId] = entity;
+                } catch (error) {
+                    console.warn(`Failed to create entity for flight ${flightId}:`, error);
+                }
+            } else {
+                // Update existing entity position and orientation
+                const entity = flightsRef.current[flightId];
+                const position = Cesium.Cartesian3.fromDegrees(
+                    flight.longitude, 
+                    flight.latitude, 
+                    flight.baro_altitude || 10000
+                );
+                entity.position = new Cesium.ConstantPositionProperty(position);
+                
+                if (use3DFlightModels && entity.orientation) {
+                    entity.orientation = new Cesium.ConstantProperty(
+                        Cesium.Transforms.headingPitchRollQuaternion(
+                            position,
+                            new Cesium.HeadingPitchRoll(
+                                Cesium.Math.toRadians(flight.true_track || 0),
+                                0,
+                                0
+                            ) as HeadingPitchRoll
+                        )
+                    );
+                } else if (entity.billboard) {
+                    entity.billboard.rotation = new Cesium.ConstantProperty(
+                        Cesium.Math.toRadians(-(flight.true_track || 0))
+                    );
+                }
+            }
+        });
+        
+        console.log(`Showing ${selectedFlights.length} flights out of ${allFlightsDataRef.current.length} total`);
+    }, 250), []);
 
     useEffect(() => {
-        if (viewerRef.current && showFlights) {
-            fetchFlights(viewerRef.current);
+        if (!viewerRef.current) return;
 
-            // Add throttled camera change event listener to improve performance
-            const viewer = viewerRef.current;
-            let throttleTimeout: NodeJS.Timeout | null = null;
-
-            const onCameraChange = () => {
-                if (showFlights && !throttleTimeout) {
-                    throttleTimeout = setTimeout(() => {
-                        updateVisibleFlights(viewer);
-                        throttleTimeout = null;
-                    }, 100); // Throttle to max 10 updates per second
-                }
-            };
-
-            viewer.camera.changed.addEventListener(onCameraChange);
+        const viewer = viewerRef.current;
+        
+        if (showFlights) {
+            // Initial fetch and display
+            fetchFlights(viewer);
+            
+            // Set up camera event listeners for dynamic updates
+            const removeListener = viewer.camera.changed.addEventListener(() => {
+                updateFlightDisplay(viewer);
+            });
 
             // Add click handler for planes
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
@@ -308,31 +335,42 @@ export function useFlights({
             }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
             return () => {
-                if (throttleTimeout) {
-                    clearTimeout(throttleTimeout);
-                }
-                if (viewer && !viewer.isDestroyed()) {
-                    viewer.camera.changed.removeEventListener(onCameraChange);
-                }
+                removeListener();
                 (handler as ScreenSpaceEventHandler).destroy();
             };
-        } else if (viewerRef.current && !showFlights) {
+        } else {
+            // Hide all flights
             Object.values(flightsRef.current).forEach((entity) => {
-                viewerRef.current?.entities.remove(entity);
+                viewer.entities.remove(entity);
             });
             flightsRef.current = {};
-            visibleFlightsRef.current.clear();
             allFlightsDataRef.current = [];
         }
-        // eslint-disable-next-line
-    }, [showFlights, use3DFlightModels, maxFlightDistance]);
+    }, [showFlights, updateFlightDisplay]);
+
+    // Handle model type changes (force recreation)
+    useEffect(() => {
+        if (!viewerRef.current || !showFlights) return;
+
+        const viewer = viewerRef.current;
+
+        // Clear existing entities (but do NOT clear allFlightsDataRef or call fetchFlights)
+        Object.values(flightsRef.current).forEach((entity) => {
+            viewer.entities.remove(entity);
+        });
+        flightsRef.current = {};
+
+        // Trigger redisplay with new model type
+        if (allFlightsDataRef.current.length > 0) {
+            updateFlightDisplay(viewer);
+        }
+    }, [use3DFlightModels, updateFlightDisplay]);
 
     return {
         fetchFlights,
-        updateVisibleFlights,
+        updateFlightDisplay,
         flightsRef,
         allFlightsDataRef,
-        visibleFlightsRef,
         showPlaneData,
     };
 }
