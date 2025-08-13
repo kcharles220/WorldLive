@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { Viewer, Cartesian3, Entity, Cartesian2, HeadingPitchRoll, ScreenSpaceEventHandler } from "cesium";
 import axios from "axios";
 
 export interface Flight {
@@ -30,13 +31,13 @@ export function useFlights({
     maxFlightDistance,
     Cesium
 }: {
-    viewerRef: React.MutableRefObject<any>;
+    viewerRef: React.MutableRefObject<Viewer | null>;
     showFlights: boolean;
     use3DFlightModels: boolean;
     maxFlightDistance: number;
-    Cesium: any;
+    Cesium: typeof import("cesium");
 }) {
-    const flightsRef = useRef<{ [id: string]: any }>({});
+    const flightsRef = useRef<{ [id: string]: Entity }>({});
     const allFlightsDataRef = useRef<Flight[]>([]);
     const visibleFlightsRef = useRef<Set<string>>(new Set());
 
@@ -54,7 +55,7 @@ export function useFlights({
         window.dispatchEvent(event);
     };
 
-    const fetchFlights = async (viewer: any) => {
+    const fetchFlights = async (viewer: Viewer) => {
         try {
             const res = await axios.get(flightApi);
             const data = res.data;
@@ -73,7 +74,7 @@ export function useFlights({
                         const rawAlt = state[7];
                         const rawHeading = state[10];
                         const rawFlightId = state[1];
-                        
+
                         return {
                             icao24: state[0] as string,
                             callsign: typeof rawFlightId === "string" ? rawFlightId.trim() : String(rawFlightId || "").trim(),
@@ -108,12 +109,12 @@ export function useFlights({
         }
     };
 
-    const calculateDistance = (cameraPos: any, flightLon: number, flightLat: number, flightAlt: number) => {
+    const calculateDistance = (cameraPos: Cartesian3, flightLon: number, flightLat: number, flightAlt: number) => {
         const flightPos = Cesium.Cartesian3.fromDegrees(flightLon, flightLat, flightAlt);
         return Cesium.Cartesian3.distance(cameraPos, flightPos);
     };
 
-    const updateVisibleFlights = (viewer: any) => {
+    const updateVisibleFlights = (viewer: Viewer) => {
         if (!viewer || allFlightsDataRef.current.length === 0) return;
 
         const camera = viewer.camera;
@@ -214,13 +215,6 @@ export function useFlights({
             })
             .slice(0, maxFlights); // Limit total flights for performance
 
-        // Debug: log some distance information
-        if (allFlightsDataRef.current.length > 0) {
-            const sampleFlights = allFlightsDataRef.current.slice(0, 5).map(flight => {
-                const distance = calculateDistance(camera.position, flight.longitude, flight.latitude, flight.baro_altitude || 10000);
-                return { id: flight.icao24, distance: Math.round(distance), withinRange: distance <= adaptiveMaxDistance };
-            });
-        }
 
 
         // Process only the best candidate flights
@@ -235,7 +229,7 @@ export function useFlights({
                 if (existing) viewer.entities.remove(existing);
 
                 const position = Cesium.Cartesian3.fromDegrees(flight.longitude, flight.latitude, flight.baro_altitude || 10000);
-                const entityConfig: Partial<any> = {
+                const entityConfig: Parameters<typeof viewer.entities.add>[0] = {
                     id: entityId,
                     position: position,
                 };
@@ -255,7 +249,7 @@ export function useFlights({
                             Cesium.Math.toRadians(flight.true_track || 0),
                             0,
                             0
-                        )
+                        ) as HeadingPitchRoll
                     );
                 } else {
                     entityConfig.billboard = {
@@ -305,7 +299,7 @@ export function useFlights({
 
             // Add click handler for planes
             const handler = new Cesium.ScreenSpaceEventHandler(viewer.scene.canvas);
-            handler.setInputAction((movement: any) => {
+            handler.setInputAction((movement: { position: Cartesian2 }) => {
                 const pickedObject = viewer.scene.pick(movement.position);
                 if (Cesium.defined(pickedObject) && pickedObject.id && pickedObject.id.id?.startsWith("flight_")) {
                     const flightId = pickedObject.id.id.replace("flight_", "");
@@ -320,11 +314,11 @@ export function useFlights({
                 if (viewer && !viewer.isDestroyed()) {
                     viewer.camera.changed.removeEventListener(onCameraChange);
                 }
-                handler.destroy();
+                (handler as ScreenSpaceEventHandler).destroy();
             };
         } else if (viewerRef.current && !showFlights) {
             Object.values(flightsRef.current).forEach((entity) => {
-                viewerRef.current.entities.remove(entity);
+                viewerRef.current?.entities.remove(entity);
             });
             flightsRef.current = {};
             visibleFlightsRef.current.clear();

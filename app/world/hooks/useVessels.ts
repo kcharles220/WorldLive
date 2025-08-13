@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import type { Viewer, Entity } from "cesium";
 import axios from "axios";
 
 export interface VesselReport {
@@ -29,14 +30,14 @@ export function useVessels({
   showVessels,
   Cesium
 }: {
-  viewerRef: React.MutableRefObject<any>;
+  viewerRef: React.MutableRefObject<Viewer | null>;
   showVessels: boolean;
-  Cesium: any;
+  Cesium: typeof import("cesium");
 }) {
-  const vesselsRef = useRef<{ [id: string]: any }>({});
+  const vesselsRef = useRef<{ [id: string]: Entity }>({});
   const vesselApi = "https://ais.marineplan.com/location/v1/locations.json";
 
-  const fetchVessels = async (viewer: any) => {
+  const fetchVessels = async (viewer: Viewer) => {
     try {
       const res = await axios.get(vesselApi);
       const data = res.data;
@@ -76,7 +77,7 @@ export function useVessels({
       fetchVessels(viewerRef.current);
     } else if (viewerRef.current && !showVessels) {
       Object.values(vesselsRef.current).forEach((entity) => {
-        viewerRef.current.entities.remove(entity);
+        viewerRef.current?.entities.remove(entity);
       });
       vesselsRef.current = {};
     }

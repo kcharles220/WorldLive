@@ -1,9 +1,9 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useVessels } from "./hooks/useVessels";
-import { useFlights } from "./hooks/useFlights";
+import { useFlights, Flight } from "./hooks/useFlights";
 import { useRouter } from "next/navigation";
-import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath, Entity, Transforms, HeadingPitchRoll, Color } from "cesium";
+import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath } from "cesium";
 import * as Cesium from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 import { accessToken } from "../../cesium.config";
@@ -29,7 +29,8 @@ import {
   MapPinHouse,
   Sparkles,
   CloudRain,
-  Box
+  Box,
+  Activity
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -51,7 +52,7 @@ export default function WorldPage() {
   const [showFlightPopup, setShowFlightPopup] = useState(false);
   const [selectedFlight, setSelectedFlight] = useState<{
     icao24: string;
-    flightData?: any;
+    flightData?: Flight;
   } | null>(null);
 
   // Settings state
@@ -77,7 +78,7 @@ export default function WorldPage() {
     use3DFlightModels: false
   });
 
-  const { flightsRef, allFlightsDataRef, visibleFlightsRef, fetchFlights, updateVisibleFlights, showPlaneData } = useFlights({
+  const {  } = useFlights({
     viewerRef,
     showFlights: settings.showFlights,
     use3DFlightModels: settings.use3DFlightModels,
@@ -87,9 +88,8 @@ export default function WorldPage() {
 
   // Handle plane click events
   useEffect(() => {
-    const handlePlaneClick = (event: any) => {
-      const { icao24, flightData } = event.detail;
-      console.log("Plane clicked:", flightData);
+    const handlePlaneClick = (event: Event) => {
+      const { icao24, flightData } = (event as CustomEvent).detail;
       setSelectedFlight({ icao24, flightData });
       setShowFlightPopup(true);
     };
@@ -99,7 +99,7 @@ export default function WorldPage() {
   }, []);
 
   // Vessel logic handled by useVessels hook
-  const { fetchVessels, vesselsRef } = useVessels({
+  const { } = useVessels({
     viewerRef,
     showVessels: settings.showVessels,
     Cesium
@@ -715,6 +715,15 @@ export default function WorldPage() {
                   </div>
                 </div>
               </div>
+              <div className="p-4 bg-gray-900/50 border border-gray-800 rounded-xl opacity-60 flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <Activity className="w-5 h-5 text-red-500" />
+                  <div>
+                    <div className="font-medium text-gray-300">Natural Events</div>
+                    <div className="text-gray-500 text-sm">Coming soon...</div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1048,7 +1057,7 @@ export default function WorldPage() {
                     <Plane className="w-5 h-5 text-black" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-white">{selectedFlight.flightData.callsign}</h3>
+                    <h3 className="text-xl font-bold text-white">{selectedFlight.flightData?.callsign}</h3>
                     <p className="text-sm text-gray-400">Live Flight Data</p>
                   </div>
                 </div>
@@ -1141,8 +1150,8 @@ export default function WorldPage() {
                       <div className="flex items-center justify-between py-2 px-3 bg-gray-900/50 rounded-lg">
                         <span className="text-gray-400 text-sm font-medium">Vertical Rate</span>
                         <span className={`font-mono text-sm ${
-                          selectedFlight.flightData.vertical_rate > 0 ? 'text-green-400' : 
-                          selectedFlight.flightData.vertical_rate < 0 ? 'text-red-400' : 'text-white'
+                          (selectedFlight.flightData.vertical_rate ?? 0) > 0 ? 'text-green-400' : 
+                          (selectedFlight.flightData.vertical_rate ?? 0) < 0 ? 'text-red-400' : 'text-white'
                         }`}>
                           {selectedFlight.flightData.vertical_rate ? 
                             `${selectedFlight.flightData.vertical_rate > 0 ? '+' : ''}${selectedFlight.flightData.vertical_rate.toFixed(1)} m/s` : 'N/A'}
@@ -1166,7 +1175,10 @@ export default function WorldPage() {
                               'UAV', 'Space Vehicle', 'Emergency Vehicle', 'Service Vehicle', 'Point Obstacle',
                               'Cluster Obstacle', 'Line Obstacle'
                             ];
-                            return categories[selectedFlight.flightData.category] || 'Unknown';
+                            const catIdx = selectedFlight.flightData.category;
+                            return typeof catIdx === 'number' && catIdx >= 0 && catIdx < categories.length
+                              ? categories[catIdx]
+                              : 'Unknown';
                           })()}
                         </span>
                       </div>
@@ -1175,7 +1187,10 @@ export default function WorldPage() {
                         <span className="text-white text-sm">
                           {(() => {
                             const sources = ['ADS-B', 'ASTERIX', 'MLAT', 'FLARM'];
-                            return sources[selectedFlight.flightData.position_source] || 'Unknown';
+                            const posSource = selectedFlight.flightData.position_source;
+                            return typeof posSource === 'number' && posSource >= 0 && posSource < sources.length
+                              ? sources[posSource]
+                              : 'Unknown';
                           })()}
                         </span>
                       </div>
