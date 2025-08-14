@@ -41,6 +41,7 @@ export interface Flight {
 export function useFlights({
     viewerRef,
     showFlights,
+    simulateMovement,
     use3DFlightModels,
     Cesium,
     onError,
@@ -48,6 +49,7 @@ export function useFlights({
 }: {
     viewerRef: React.MutableRefObject<Viewer | null>;
     showFlights: boolean;
+    simulateMovement: boolean;
     use3DFlightModels: boolean;
     maxFlightDistance: number;
     Cesium: typeof import("cesium");
@@ -329,6 +331,71 @@ export function useFlights({
         });
 
     }, 250), []);
+
+    // Move a flight forward based on heading and speed
+    function moveFlight(
+        lat: number,
+        lon: number,
+        heading: number, // degrees
+        speed: number,   // m/s
+        elapsedSeconds: number
+    ): { lat: number; lon: number } {
+        const R = 6371000; // Earth radius in meters
+        const distance = speed * elapsedSeconds;
+
+        const headingRad = (heading * Math.PI) / 180;
+        const latRad = (lat * Math.PI) / 180;
+        const lonRad = (lon * Math.PI) / 180;
+
+        const newLatRad = Math.asin(
+            Math.sin(latRad) * Math.cos(distance / R) +
+            Math.cos(latRad) * Math.sin(distance / R) * Math.cos(headingRad)
+        );
+        const newLonRad =
+            lonRad +
+            Math.atan2(
+                Math.sin(headingRad) * Math.sin(distance / R) * Math.cos(latRad),
+                Math.cos(distance / R) - Math.sin(latRad) * Math.sin(newLatRad)
+            );
+
+        return {
+            lat: (newLatRad * 180) / Math.PI,
+            lon: (newLonRad * 180) / Math.PI,
+        };
+    }
+    useEffect(() => {
+        if (!showFlights || !simulateMovement) return;
+        const interval = setInterval(() => {
+           
+            allFlightsDataRef.current = allFlightsDataRef.current.map(flight => {
+                if (
+                    typeof flight.latitude === 'number' &&
+                    typeof flight.longitude === 'number' &&
+                    typeof flight.velocity === 'number' &&
+                    typeof flight.true_track === 'number'
+                ) {
+                    const { lat, lon } = moveFlight(
+                        flight.latitude,
+                        flight.longitude,
+                        flight.true_track,
+                        flight.velocity,
+                        10 
+                    );
+                    return {
+                        ...flight,
+                        latitude: lat,
+                        longitude: lon,
+                    };
+                }
+                return flight;
+            });
+            // Update Cesium entities if needed
+            if (viewerRef.current) {
+                updateFlightDisplay(viewerRef.current);
+            }
+        }, 10000);
+        return () => clearInterval(interval);
+    }, [showFlights]);
 
     useEffect(() => {
         if (!viewerRef.current) return;

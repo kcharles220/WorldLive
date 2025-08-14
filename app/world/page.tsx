@@ -33,7 +33,9 @@ import {
   Box,
   ChevronRight,
   AlertTriangle,
-  ChevronLeft
+  ChevronLeft,
+  ArrowUpFromDot,
+  Info
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -80,12 +82,14 @@ export default function WorldPage() {
     showBorders: false,
     showFlights: false,
     showVessels: false,
-    use3DFlightModels: false
+    use3DFlightModels: false,
+    simulateMovement: false
   });
 
   const { } = useFlights({
     viewerRef,
     showFlights: settings.showFlights,
+    simulateMovement: settings.simulateMovement,
     use3DFlightModels: settings.use3DFlightModels,
     maxFlightDistance: settings.use3DFlightModels ? 2000000 : 20000000, // Much larger distances
     Cesium,
@@ -1059,7 +1063,7 @@ export default function WorldPage() {
                   </div>
                 </div>
 
-                {/* Advanced Settings Section */}
+                {/* More Settings Section */}
                 <div className="space-y-4">
                   <h4 className="text-sm font-bold text-gray-300 uppercase tracking-wider flex items-center space-x-2">
                     <span>More</span>
@@ -1100,6 +1104,34 @@ export default function WorldPage() {
                       />
                     </button>
                   </div>
+
+                  <div className="flex items-center justify-between p-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-all duration-200">
+                    <div className="flex items-center space-x-3 relative group">
+                      <ArrowUpFromDot className="w-5 h-5 text-indigo-500" />
+                      <span className="text-white font-medium">Simulate Movement</span>
+                      <div className="relative flex items-center">
+                        <Info className="w-5 h-5 text-gray-400 cursor-pointer" />
+                        <div className=" absolute left-1/2 bottom-full mb-2 -translate-x-1/2 z-50 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-200">
+                          <div className="w-[16rem] max-w-full bg-black/90 border border-gray-700 rounded-lg shadow-lg px-4 py-2 text-xs text-gray-200 flex items-center gap-2">
+                            <span>
+                              Aircraft positions are estimated using current speed and heading. Real flights may curve or change speed/altitude. Updates are limited to avoid API rate limits.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => updateSetting('simulateMovement', !settings.simulateMovement)}
+                      className={`cursor-pointer w-12 h-6 rounded-full transition-all duration-200 ${settings.simulateMovement ? 'bg-indigo-500' : 'bg-gray-700'
+                        }`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full shadow-lg transition-transform duration-200 ${settings.simulateMovement ? 'translate-x-6' : 'translate-x-0.5'
+                          }`}
+                      />
+                    </button>
+                  </div>
+
                 </div>
 
 
