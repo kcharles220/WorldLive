@@ -43,15 +43,16 @@ export function useFlights({
     showFlights,
     use3DFlightModels,
     Cesium,
-    onError
+    onError,
+    onFlightsCountChange
 }: {
     viewerRef: React.MutableRefObject<Viewer | null>;
     showFlights: boolean;
     use3DFlightModels: boolean;
     maxFlightDistance: number;
     Cesium: typeof import("cesium");
-    onError?: (err: string) => void; // <-- add this
-
+    onError?: (err: string) => void;
+    onFlightsCountChange?: (count: number) => void;
 }) {
     const flightsRef = useRef<{ [id: string]: Entity }>({});
     const allFlightsDataRef = useRef<Flight[]>([]);
@@ -76,7 +77,6 @@ export function useFlights({
         try {
             const res = await axios.get(flightApi);
             const data = res.data;
-
 
             if (Array.isArray(data.states)) {
                 // Filter first, then map - much more efficient than forEach with conditions
@@ -113,16 +113,22 @@ export function useFlights({
                             category: typeof state[17] === "number" ? state[17] : null
                         };
                     });
-
-
+                if (onFlightsCountChange) {
+                    onFlightsCountChange(allFlightsDataRef.current.length);
+                }
             } else {
                 console.warn('No states array in API response');
                 allFlightsDataRef.current = [];
+                if (onFlightsCountChange) {
+                    onFlightsCountChange(0);
+                }
             }
 
             updateFlightDisplay(viewer);
         } catch (error) {
-
+            if (onFlightsCountChange) {
+                onFlightsCountChange(0);
+            }
             if (onError) {
                 onError("Failed to fetch flight data. Please try again later.");
             }
@@ -154,23 +160,27 @@ export function useFlights({
         let maxFlights: number;
         let priorityRadius: number;
 
-        if (cameraHeight > 20000000) { // Very high altitude - Global view
-            maxDistance = 50000000; // 50,000 km
-            maxFlights = use3DFlightModels ? 30 : 100;
-            priorityRadius = 10000000;
-        } else if (cameraHeight > 5000000) { // High altitude - Continental view
-            maxDistance = 20000000; // 20,000 km
-            maxFlights = use3DFlightModels ? 50 : 200;
-            priorityRadius = 5000000;
-        } else if (cameraHeight > 1000000) { // Medium altitude - Regional view
-            maxDistance = 5000000; // 5,000 km
-            maxFlights = use3DFlightModels ? 100 : 400;
-            priorityRadius = 2000000;
-        } else {
+        if (cameraHeight < 100000) { // Low altitude - Local view
             maxDistance = 2000000; // 2,000 km
-            maxFlights = use3DFlightModels ? 150 : 600;
+            maxFlights = use3DFlightModels ? 150 : 1000;
             priorityRadius = 1000000;
+        } else if (cameraHeight < 5000000) { // Medium altitude - Regional view
+            maxDistance = 5000000; // 5,000 km
+            maxFlights = use3DFlightModels ? 100 : 1000;
+            priorityRadius = 2000000;
+        } else if (cameraHeight < 10000000) { // High altitude - Continental view
+            maxDistance = 20000000; // 20,000 km
+            maxFlights = use3DFlightModels ? 50 : 1000;
+            priorityRadius = 5000000;
+        } else if (cameraHeight < 20000000) { // Very high altitude - Global view
+            maxDistance = 50000000; // 50,000 km
+            maxFlights = use3DFlightModels ? 30 : 1000;
+            priorityRadius = 5000000;
+        } else {
+            maxFlights = 0;
         }
+
+
 
         // Get flights with distance and priority scoring
         const flightsWithDistance = allFlightsDataRef.current
@@ -233,9 +243,9 @@ export function useFlights({
         if (use3DFlightModels) {
             entityConfig.model = {
                 uri: '/models/plane.glb',
-                scale: 30,
+                scale: 20,
                 minimumPixelSize: 32,
-                maximumScale: 1000,
+                maximumScale: 500,
                 runAnimations: false,
                 color: Cesium.Color.WHITE.withAlpha(0.95),
             };
@@ -250,7 +260,7 @@ export function useFlights({
         } else {
             entityConfig.billboard = {
                 image: '/models/airplane2.svg',
-                scale: 0.5,
+                scale: 0.4,
                 rotation: Cesium.Math.toRadians(-(flight.true_track || 0)),
                 alignedAxis: Cesium.Cartesian3.UNIT_Z,
                 color: new Cesium.Color(1.0, 1.0, 1.0, 0.9),
@@ -267,7 +277,7 @@ export function useFlights({
         const selectedFlights = selectFlightsToShow(viewer);
         const selectedFlightIds = new Set(selectedFlights.map(f => f.icao24));
 
-        // Remove entities that are no longer needed
+        // Remove entities 
         const currentEntityIds = new Set(Object.keys(flightsRef.current));
         currentEntityIds.forEach(flightId => {
             if (!selectedFlightIds.has(flightId)) {
@@ -318,7 +328,6 @@ export function useFlights({
             }
         });
 
-        console.log(`Showing ${selectedFlights.length} flights out of ${allFlightsDataRef.current.length} total`);
     }, 250), []);
 
     useEffect(() => {
