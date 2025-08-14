@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { useVessels } from "./hooks/useVessels";
+import { useVessels, Vessel } from "./hooks/useVessels";
 import { useFlights, Flight } from "./hooks/useFlights";
 import { useRouter } from "next/navigation";
 import { Ion, Viewer, Cesium3DTileset, KmlDataSource, GridImageryProvider, Cartesian3, Math as CesiumMath } from "cesium";
@@ -35,7 +35,9 @@ import {
   AlertTriangle,
   ChevronLeft,
   ArrowUpFromDot,
-  Info
+  Info,
+  Search,
+  LocateFixed
 } from "lucide-react";
 
 export default function WorldPage() {
@@ -54,6 +56,17 @@ export default function WorldPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showDataLayers, setShowDataLayers] = useState(true);
   const [error, setError] = useState<{ title: string; message: string } | null>(null);
+
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchFlights, setSearchFlights] = useState(true);
+  const [searchVessels, setSearchVessels] = useState(true);
+  const [searchResults, setSearchResults] = useState<{
+    flights: Flight[];
+    vessels: Vessel[];
+  }>({ flights: [], vessels: [] });
+  const [showSearchResults, setShowSearchResults] = useState(false);
 
   // Flight popup state
   const [showFlightPopup, setShowFlightPopup] = useState(false);
@@ -86,7 +99,7 @@ export default function WorldPage() {
     simulateMovement: false
   });
 
-  const { } = useFlights({
+  const { allFlightsDataRef } = useFlights({
     viewerRef,
     showFlights: settings.showFlights,
     simulateMovement: settings.simulateMovement,
@@ -111,9 +124,22 @@ export default function WorldPage() {
       setShowFlightPopup(true);
     };
 
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showSearch && !target.closest('.search-container')) {
+        setShowSearch(false);
+        setShowSearchResults(false);
+      }
+    };
+
     window.addEventListener('planeClicked', handlePlaneClick);
-    return () => window.removeEventListener('planeClicked', handlePlaneClick);
-  }, []);
+    document.addEventListener('mousedown', handleClickOutside);
+
+    return () => {
+      window.removeEventListener('planeClicked', handlePlaneClick);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearch]);
 
   // Vessel logic handled by useVessels hook
   const { } = useVessels({
@@ -385,6 +411,68 @@ export default function WorldPage() {
     }
   };
 
+  // Search functionality
+  const performSearch = (query: string) => {
+    if (!query.trim()) {
+      setSearchResults({ flights: [], vessels: [] });
+      setShowSearchResults(false);
+      return;
+    }
+
+    const results = {
+      flights: [] as Flight[],
+      vessels: [] as Vessel[]
+    };
+
+    // Search flights if enabled and flights are shown
+    if (searchFlights && settings.showFlights && allFlightsDataRef.current) {
+      results.flights = allFlightsDataRef.current.filter(flight =>
+        flight.callsign?.toLowerCase().includes(query.toLowerCase()) ||
+        flight.icao24?.toLowerCase().includes(query.toLowerCase()) ||
+        flight.origin_country?.toLowerCase().includes(query.toLowerCase())
+      );
+    }
+
+    // Search vessels if enabled and vessels are shown (placeholder for when vessels are implemented)
+    if (searchVessels && settings.showVessels) {
+      // TODO: Add vessel search when vessel data is available
+    }
+
+    setSearchResults(results);
+    setShowSearchResults(results.flights.length > 0 || results.vessels.length > 0);
+  };
+
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    performSearch(query);
+  };
+
+  const selectSearchResult = (flight: Flight) => {
+    setSelectedFlight({ icao24: flight.icao24, flightData: flight });
+    setShowFlightPopup(true);
+    setShowSearch(false);
+    setShowSearchResults(false);
+    setSearchQuery("");
+
+    moveCameraToFlight(flight);
+  };
+
+  const moveCameraToFlight = (flight: Flight) => {
+    if (viewerRef.current) {
+      const viewer = viewerRef.current;
+      const position = Cesium.Cartesian3.fromDegrees(
+        flight.longitude,
+        flight.latitude,
+        (flight.baro_altitude || 10000) + 50000
+      );
+      viewer.camera.flyTo({
+        destination: position,
+        duration: 2
+      });
+    }
+  };
+
   const resetView = () => {
     if (viewerRef.current) {
       const viewer = viewerRef.current;
@@ -463,7 +551,7 @@ export default function WorldPage() {
           <div className="absolute top-4 left-4 z-40">
             <button
               onClick={() => router.push('/')}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              className="cursor-pointer w-10 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/60 transition-all duration-200 shadow-sm"
               title="Go to Home"
             >
               <Home className="w-5 h-5 text-foreground" />
@@ -472,10 +560,173 @@ export default function WorldPage() {
 
           {/* Control Buttons - Top Right */}
           <div className="absolute top-4 right-4 z-40 flex space-x-2">
+            {/* Search Component */}
+            <div className="relative search-container">
+              <div className={`flex items-center transition-all duration-300 ease-in-out ${showSearch ? 'w-80' : 'w-24'
+                }`}>
+                {/* Search Input (appears when expanded) */}
+                {showSearch && (
+                  <div className="flex-1 bg-black/85 backdrop-blur-sm border border-border rounded-l-lg h-10 flex items-center px-3 gap-2">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={handleSearchInputChange}
+                      placeholder={
+                        !settings.showFlights && !settings.showVessels 
+                          ? "Enable data layers to search..."
+                          : `Search ${searchFlights && settings.showFlights ? 'flights' : ''}${searchFlights && settings.showFlights && searchVessels && settings.showVessels ? ', ' : ''}${searchVessels && settings.showVessels ? 'vessels' : ''}...`
+                      }
+                      className="flex-1 bg-transparent text-foreground placeholder-muted-foreground text-sm focus:outline-none"
+                      autoFocus
+                      disabled={!settings.showFlights && !settings.showVessels}
+                    />
+
+                    {/* Search Type Indicators */}
+                    <div className="flex items-center gap-1">
+                      {settings.showFlights && (
+                        <button
+                          onClick={() => setSearchFlights(!searchFlights)}
+                          className={`p-1 rounded transition-colors ${searchFlights ? 'bg-yellow-500/20 text-yellow-400' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          title={`${searchFlights ? 'Disable' : 'Enable'} flight search`}
+                        >
+                          <Plane className="w-3 h-3" />
+                        </button>
+                      )}
+                      {settings.showVessels && (
+                        <button
+                          onClick={() => setSearchVessels(!searchVessels)}
+                          className={`p-1 rounded transition-colors ${searchVessels ? 'bg-cyan-500/20 text-cyan-400' : 'text-muted-foreground hover:text-foreground'
+                            }`}
+                          title={`${searchVessels ? 'Disable' : 'Enable'} vessel search`}
+                        >
+                          <Anchor className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Button */}
+                <button
+                  onClick={() => {
+                    if (showSearch) {
+                      setShowSearch(false);
+                      setShowSearchResults(false);
+                      setSearchQuery("");
+                    } else {
+                      if (!settings.showFlights && !settings.showVessels) {
+                        setShowSearch(true);
+                        setShowSearchResults(true);
+                        setSearchQuery("");
+                        setSearchResults({ flights: [], vessels: [] });
+                      } else {
+                        setShowSearch(true);
+                        setSearchFlights(settings.showFlights);
+                        setSearchVessels(settings.showVessels);
+                      }
+                    }
+                  }}
+                  className={`cursor-pointer h-10 bg-black/85 backdrop-blur-sm border border-border flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm gap-2 ${showSearch ? 'w-10 rounded-r-lg border-l-0' : 'w-25 rounded-lg'
+                    }`}
+                  title="Search Flights, Vessels and more!"
+                >
+                  {showSearch ? (
+                    <ChevronRight className="w-5 h-5 text-foreground" />
+                  ) : (
+                    <>
+                      <ChevronLeft className="w-5 h-5 text-foreground" />
+                      <Search className="w-5 h-5 text-foreground" />
+                    </>
+
+                  )}
+                </button>
+              </div>
+
+              {/* Search Results Dropdown */}
+              {showSearchResults && (
+                <div className="absolute top-12 right-0 w-80 max-w-[90vw] bg-black/85 backdrop-blur-sm border border-border rounded-lg shadow-xl max-h-60 overflow-y-auto custom-scrollbar z-52">
+                  {/* Flight Results */}
+                  {searchResults.flights.length > 0 && (
+                    <div className="p-2">
+                      <div className="text-xs text-muted-foreground mb-2 px-2 flex items-center gap-1">
+                        <Plane className="w-3 h-3" />
+                        Flights ({searchResults.flights.length})
+                      </div>
+                      {searchResults.flights.map((flight) => (
+                        <button
+                          key={flight.icao24}
+                          onClick={() => selectSearchResult(flight)}
+                          className="w-full text-left p-2 rounded hover:bg-white/10 transition-colors group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1">
+                              <div className="text-sm font-medium text-foreground group-hover:text-yellow-400 transition-colors">
+                                {flight.callsign || flight.icao24}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {flight.origin_country || 'Unknown Origin'}
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {flight.velocity ? `${Math.round(flight.velocity * 3.6)} km/h` : 'N/A'}
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Vessel Results (placeholder) */}
+                  {searchResults.vessels.length > 0 && (
+                    <div className="p-2 border-t border-border">
+                      <div className="text-xs text-muted-foreground mb-2 px-2 flex items-center gap-1">
+                        <Anchor className="w-3 h-3" />
+                        Vessels ({searchResults.vessels.length})
+                      </div>
+                      {/* Vessel results would go here */}
+                    </div>
+                  )}
+
+                  {/* No Results or Warning */}
+                  {(!settings.showFlights && !settings.showVessels) ? (
+                    <div className="p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-3">
+                        <div className="w-8 h-8 bg-amber-500/20 border border-amber-500/30 rounded-xl flex items-center justify-center">
+                          <AlertTriangle className="w-4 h-4 text-amber-400" />
+                        </div>
+                      </div>
+                      <div className="text-sm font-medium text-amber-400 mb-2">No Data Layers Enabled</div>
+                      <div className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                        Enable flights or vessels in the Data Layers panel to search for live data.
+                      </div>
+                      
+                      <button
+                        onClick={() => {
+                          setShowDataLayers(true);
+                          setShowSearch(false);
+                          setShowSearchResults(false);
+                        }}
+                        className="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 rounded-lg text-xs text-amber-400 transition-colors"
+                      >
+                        Open Data Layers
+                      </button>
+                    </div>
+                  ) : (
+                    searchResults.flights.length === 0 && searchResults.vessels.length === 0 && searchQuery.trim() && (
+                      <div className="p-4 text-center text-muted-foreground text-sm">
+                        No results found for &quot;{searchQuery}&quot;
+                      </div>
+                    )
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* Help Button */}
             <button
               onClick={() => setShowInstructions(true)}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              className="cursor-pointer w-10 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
               title="Controls & Instructions"
             >
               <HelpCircle className="w-5 h-5 text-foreground" />
@@ -483,7 +734,7 @@ export default function WorldPage() {
             {/* Reset View Button */}
             <button
               onClick={() => resetView()}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              className="cursor-pointer w-10 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
               title="Reset View"
             >
               <MapPinHouse className="w-5 h-5 text-foreground" />
@@ -492,7 +743,7 @@ export default function WorldPage() {
             {/* Settings Button */}
             <button
               onClick={() => setShowSettings(true)}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              className="cursor-pointer w-10 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
               title="Settings"
             >
               <Settings className="w-5 h-5 text-foreground" />
@@ -501,7 +752,7 @@ export default function WorldPage() {
             {/* Fullscreen Button */}
             <button
               onClick={toggleFullscreen}
-              className="cursor-pointer w-10 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
+              className="cursor-pointer w-10 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 transition-all duration-200 shadow-sm"
               title="Toggle Fullscreen"
             >
               {isFullscreen ? (
@@ -516,7 +767,7 @@ export default function WorldPage() {
           {!showDataLayers && (
             <button
               onClick={() => setShowDataLayers(true)}
-              className="gap-4 cursor-pointer fixed top-16 right-4 z-50 w-22 h-10 bg-black/60 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 shadow-sm transition-all duration-200"
+              className="gap-4 cursor-pointer fixed top-16 right-4 z-50 w-22 h-10 bg-black/85 backdrop-blur-sm border border-border rounded-lg flex items-center justify-center hover:bg-black/40 shadow-sm transition-all duration-200"
               title="Show Data Layers"
             >
               <ChevronLeft className="w-4 h-4 text-foreground mr-1 animate-pulse" style={{
@@ -528,11 +779,11 @@ export default function WorldPage() {
           )}
           {/* Data Layers Panel - Below Fullscreen Button */}
           <div
-            className={`fixed top-16 right-4 z-50 transition-all duration-300 ease-in-out ${showDataLayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
+            className={`fixed top-16 right-4 z-5 transition-all duration-300 ease-in-out ${showDataLayers ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0 pointer-events-none'
               }`}
             style={{ width: '18rem', maxWidth: '90vw' }}
           >
-            <div className="bg-black/85 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm w-full  flex flex-col">
+            <div className="bg-black/85 border border-border rounded-2xl shadow-2xl backdrop-blur-sm w-full  flex flex-col">
 
               <div className="p-4 mb-4 border-b border-gray-800 flex-shrink-0">
                 <div className="flex items-center justify-between">
@@ -1144,7 +1395,7 @@ export default function WorldPage() {
       {/* Flight Popup */}
       {showFlightPopup && selectedFlight && (
         <div className="absolute top-16 left-4 bottom-4 z-40 max-w-md w-90 flex flex-col">
-          <div className="bg-black/85 border border-gray-700 rounded-2xl shadow-2xl backdrop-blur-sm flex flex-col h-full">
+          <div className="bg-black/85 border border-border rounded-2xl shadow-2xl backdrop-blur-sm flex flex-col h-full">
             {/* Header */}
             <div className="p-4 border-b border-gray-800 flex-shrink-0">
               <div className="flex items-center justify-between">
@@ -1157,13 +1408,26 @@ export default function WorldPage() {
                     <p className="text-sm text-gray-400">Live Flight Data</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setShowFlightPopup(false)}
-                  className="cursor-pointer w-8 h-8 bg-gray-800/50 hover:bg-gray-700 border border-gray-600 rounded-lg flex items-center justify-center transition-all duration-200"
-                  title="Close"
-                >
-                  <X className="w-4 h-4 text-gray-300" />
-                </button>
+                <div className="flex items-center gap-2 ml-4">
+                  <button
+                    onClick={() => {
+                      if (selectedFlight.flightData) {
+                        moveCameraToFlight(selectedFlight.flightData);
+                      }
+                    }}
+                    className="cursor-pointer w-8 h-8 bg-gray-800/50 hover:bg-gray-700 border border-gray-600 rounded-lg flex items-center justify-center transition-all duration-200"
+                    title="Go to Flight"
+                  >
+                    <LocateFixed className="w-4 h-4 text-gray-300" />
+                  </button>
+                  <button
+                    onClick={() => setShowFlightPopup(false)}
+                    className="cursor-pointer w-8 h-8 bg-gray-800/50 hover:bg-gray-700 border border-gray-600 rounded-lg flex items-center justify-center transition-all duration-200"
+                    title="Close"
+                  >
+                    <X className="w-4 h-4 text-gray-300" />
+                  </button>
+                </div>
               </div>
             </div>
 

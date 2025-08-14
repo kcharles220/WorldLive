@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import type { Viewer, Entity } from "cesium";
 import axios from "axios";
 
-export interface VesselReport {
+export interface Vessel {
   timeSecUtc: number;
   point: { latitude: number; longitude: number };
   destination?: { latitude: number; longitude: number };
@@ -46,7 +46,7 @@ export function useVessels({
       });
       vesselsRef.current = {};
       if (data.reports && Array.isArray(data.reports)) {
-        (data.reports as VesselReport[]).forEach((vessel) => {
+        (data.reports as Vessel[]).forEach((vessel) => {
           const lon = vessel.point?.longitude;
           const lat = vessel.point?.latitude;
           const entityId = `vessel_${vessel.mmsi}`;

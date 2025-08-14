@@ -42,10 +42,13 @@ export function Hero({ onScrollToSection }: HeroProps) {
             </Button>
             <Button
               size="lg"
-              className="text-lg px-8 py-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300"
+              className="relative group overflow-hidden text-lg px-8 py-6 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
               onClick={() => window.location.href = '/world'}
             >
+              <span className="relative z-10 flex items-center gap-2">
               Explore the World
+              </span>
+              <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/20 to-white/0 -translate-x-full group-hover:translate-x-full transition-transform duration-700 ease-out" />
             </Button>
             
           </div>
