@@ -83,7 +83,7 @@ export default function WorldPage() {
     use3DFlightModels: false
   });
 
-  const { allFlightsDataRef } = useFlights({
+  const { } = useFlights({
     viewerRef,
     showFlights: settings.showFlights,
     use3DFlightModels: settings.use3DFlightModels,
